@@ -1,19 +1,18 @@
-import 'package:flutter/material.dart';
 import 'dart:io';
+import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:network_info_plus/network_info_plus.dart';
+import 'package:path/path.dart' as p;
 
 class ReceiveScreen extends StatefulWidget {
-  const ReceiveScreen({Key? key}) : super(key: key);
-
   @override
-  State<ReceiveScreen> createState() => _ReceiveScreenState();
+  _ReceiveScreenState createState() => _ReceiveScreenState();
 }
 
 class _ReceiveScreenState extends State<ReceiveScreen> {
-  String ipAddress = 'Loading...';
-  bool isReceiving = false;
-  ServerSocket? server;
+  ServerSocket? serverSocket;
+  String receivedFileName = '';
+  double progress = 0.0;
+  String ipAddress = '';
 
   @override
   void initState() {
@@ -21,80 +20,94 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
     _getIpAddress();
   }
 
-  Future<void> _getIpAddress() async {
-    try {
-      final info = NetworkInfo();
-      final ip = await info.getWifiIP();
-      setState(() {
-        ipAddress = ip ?? 'Not found';
-      });
-    } catch (e) {
-      setState(() {
-        ipAddress = 'Error getting IP';
-      });
+  // Get the device's IP Address
+  void _getIpAddress() async {
+    for (var interface in await NetworkInterface.list()) {
+      for (var addr in interface.addresses) {
+        if (addr.type == InternetAddressType.IPv4) {
+          setState(() {
+            ipAddress = addr.address;
+          });
+          return;
+        }
+      }
     }
   }
 
-  Future<void> _startReceiving() async {
-    if (isReceiving) return;
-
+  // Start receiving files
+  void startReceiving() async {
     try {
-      setState(() {
-        isReceiving = true;
+      serverSocket = await ServerSocket.bind(InternetAddress.anyIPv4, 8080);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Listening on port 8080')),
+      );
+
+      serverSocket!.listen((client) {
+        client.listen((data) async {
+          final message = String.fromCharCodes(data);
+          if (message.startsWith('FILE_NAME:')) {
+            // Extract and sanitize the file name
+            receivedFileName = sanitizeFileName(p.basename(
+              message.replaceFirst('FILE_NAME:', '').trim(),
+            ));
+            setState(() {});
+          } else {
+            // Get the downloads directory
+            Directory downloadsDirectory = (await getDownloadsDirectory())!;
+            String speedsharePath = '${downloadsDirectory.path}/speedshare';
+            Directory speedshareDirectory = Directory(speedsharePath);
+
+            // Create the speedshare directory if it doesn't exist
+            if (!await speedshareDirectory.exists()) {
+              await speedshareDirectory.create(recursive: true);
+            }
+
+            // Save the file in the speedshare directory
+            File file = File('$speedsharePath/$receivedFileName');
+            file.writeAsBytesSync(data, mode: FileMode.append);
+          }
+        });
       });
-
-      server = await ServerSocket.bind(InternetAddress.anyIPv4, 4040);
-      debugPrint('Listening on port 4040');
-
-      server!.listen((Socket client) async {
-        debugPrint('Connection from ${client.remoteAddress.address}');
-        
-        final documentsDir = await getApplicationDocumentsDirectory();
-        final saveDir = Directory('${documentsDir.path}/speedshare');
-        if (!await saveDir.exists()) {
-          await saveDir.create();
-        }
-
-        final fileName = DateTime.now().millisecondsSinceEpoch.toString();
-        final file = File('${saveDir.path}/$fileName');
-        final sink = file.openWrite();
-
-        await client.cast<List<int>>().pipe(sink);
-        debugPrint('File saved to: ${file.path}');
-      });
-
     } catch (e) {
-      debugPrint('Error: $e');
-      setState(() {
-        isReceiving = false;
-      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
     }
+  }
+
+  // Sanitize file names to remove invalid characters
+  String sanitizeFileName(String fileName) {
+    return fileName.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
   }
 
   @override
   void dispose() {
-    server?.close();
+    serverSocket?.close();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Your IP: $ipAddress'),
-      ),
-      body: Center(
+      appBar: AppBar(title: Text('Receiver')),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             ElevatedButton(
-              onPressed: _startReceiving,
-              child: Text(isReceiving ? 'Receiving...' : 'Start Receiving'),
+              onPressed: startReceiving,
+              child: Text('Start Receiving'),
             ),
-            if (isReceiving)
-              const Padding(
-                padding: EdgeInsets.all(16.0),
-                child: Text('Waiting for files...'),
+            SizedBox(height: 20),
+            if (ipAddress.isNotEmpty) Text('IP Address: $ipAddress'),
+            SizedBox(height: 20),
+            if (receivedFileName.isNotEmpty)
+              Column(
+                children: [
+                  Text('Receiving File: $receivedFileName'),
+                  SizedBox(height: 10),
+                  LinearProgressIndicator(value: progress),
+                ],
               ),
           ],
         ),
