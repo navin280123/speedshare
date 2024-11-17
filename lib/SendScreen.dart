@@ -1,7 +1,6 @@
 import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:speedshare/FileSender.dart';
 
 class SendScreen extends StatefulWidget {
   @override
@@ -45,64 +44,47 @@ class _SendScreenState extends State<SendScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text('Sender')),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            TextField(
-              controller: ipController,
-              decoration: InputDecoration(labelText: 'Receiver IP Address'),
-              keyboardType: TextInputType.number,
+      body: Stack(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              image: DecorationImage(
+                image: AssetImage('assets/bg.jpg'), // Add your background image here
+                fit: BoxFit.cover,
+              ),
             ),
-            SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: connectToReceiver,
-              child: Text('Connect'),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                TextField(
+                  controller: ipController,
+                  decoration: InputDecoration(
+                    labelText: 'Receiver IP Address',
+                    filled: true,
+                    fillColor: Colors.white.withOpacity(0.8),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  keyboardType: TextInputType.number,
+                ),
+                SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: connectToReceiver,
+                  style: ElevatedButton.styleFrom(
+                    iconColor: Colors.blueAccent,
+                    padding: EdgeInsets.symmetric(horizontal: 50, vertical: 15),
+                    textStyle: TextStyle(fontSize: 18),
+                  ),
+                  child: Text('Connect'),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class FileSenderScreen extends StatelessWidget {
-  final Socket socket;
-
-  FileSenderScreen(this.socket);
-
-  void sendFile(BuildContext context) async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles();
-    if (result != null) {
-      File file = File(result.files.single.path!);
-      String fileName = file.path.split('/').last;
-      socket.add('FILE_NAME:$fileName\n'.codeUnits);
-
-      List<int> fileBytes = await file.readAsBytes();
-      socket.add(fileBytes);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('File sent successfully!')),
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text('File Sender')),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text('Drop Here to Send Files'),
-            SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () => sendFile(context),
-              child: Text('Send File'),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
