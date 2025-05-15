@@ -774,10 +774,10 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
             Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Lottie.asset(
-                  'assets/file_upload_animation.json',
-                  height: 120,
-                  animate: _isHovering,
+                Icon(
+                  Icons.cloud_upload_rounded,
+                  size: 80,
+                  color: _isHovering ? Color(0xFF4E6AF3) : Colors.grey[400],
                 ),
                 SizedBox(height: 16),
                 Text(
@@ -1030,7 +1030,7 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Lottie.asset(
-                                    'assets/searching_animation.json',
+                                    'assets/searchss.json',
                                     height: 120,
                                   ),
                                   SizedBox(height: 16),
@@ -1267,8 +1267,9 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Lottie.asset(
-                                    'assets/searching_animation.json',
-                                    height: 150,
+                                    'assets/searchss.json',
+                                    height: 200,
+                                    repeat: true,
                                   ),
                                   SizedBox(height: 24),
                                   Text(

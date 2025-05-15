@@ -21,13 +21,13 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
     {
       'title': 'Send',
       'icon': Icons.send_rounded,
-      'description': 'Send files to another device',
+      'description': 'Send Files',
       'color': Color(0xFF4E6AF3)
     },
     {
       'title': 'Receive',
       'icon': Icons.download_rounded,
-      'description': 'Receive files from another device',
+      'description': 'Receive Files',
       'color': Color(0xFF2AB673)
     },
     // Add more options here in the future
@@ -483,7 +483,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Lottie.asset(
-              'assets/file_transfer_animation.json',
+              'assets/logo.json',
               height: 200,
               repeat: true,
             ),
@@ -575,7 +575,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                       height: 120,
                       width: 120,
                       child: Lottie.asset(
-                        'assets/file_transfer_animation.json',
+                        'assets/logo.json',
                         repeat: true,
                       ),
                     ),
