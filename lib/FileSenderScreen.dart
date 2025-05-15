@@ -6,7 +6,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:mime/mime.dart';
 import 'package:desktop_drop/desktop_drop.dart';
-import 'package:network_info_plus/network_info_plus.dart';
 
 class FileSenderScreen extends StatefulWidget {
   @override
@@ -210,44 +209,42 @@ class _FileSenderScreenState extends State<FileSenderScreen> {
           await Socket.connect(ip, 8080, timeout: Duration(milliseconds: 500))
               .catchError((e) => null);
 
-      if (socket != null) {
-        // Listen for the device name
-        final completer = Completer<String?>();
+      // Listen for the device name
+      final completer = Completer<String?>();
 
-        // Set a timeout
-        Timer(Duration(seconds: 1), () {
-          if (!completer.isCompleted) {
-            completer.complete(null);
-          }
-        });
-
-        socket.listen((data) {
-          final message = String.fromCharCodes(data);
-          if (message.startsWith('DEVICE_NAME:')) {
-            final deviceName = message.replaceFirst('DEVICE_NAME:', '');
-            if (!completer.isCompleted) {
-              completer.complete(deviceName);
-            }
-          }
-        });
-
-        // Wait for device name or timeout
-        final deviceName = await completer.future;
-        socket.destroy();
-
-        if (deviceName != null && deviceName.isNotEmpty) {
-          setState(() {
-            // Add to list if not already present
-            if (!availableReceivers.any((device) => device.ip == ip)) {
-              availableReceivers.add(ReceiverDevice(
-                name: deviceName,
-                ip: ip,
-              ));
-            }
-          });
+      // Set a timeout
+      Timer(Duration(seconds: 1), () {
+        if (!completer.isCompleted) {
+          completer.complete(null);
         }
+      });
+
+      socket.listen((data) {
+        final message = String.fromCharCodes(data);
+        if (message.startsWith('DEVICE_NAME:')) {
+          final deviceName = message.replaceFirst('DEVICE_NAME:', '');
+          if (!completer.isCompleted) {
+            completer.complete(deviceName);
+          }
+        }
+      });
+
+      // Wait for device name or timeout
+      final deviceName = await completer.future;
+      socket.destroy();
+
+      if (deviceName != null && deviceName.isNotEmpty) {
+        setState(() {
+          // Add to list if not already present
+          if (!availableReceivers.any((device) => device.ip == ip)) {
+            availableReceivers.add(ReceiverDevice(
+              name: deviceName,
+              ip: ip,
+            ));
+          }
+        });
       }
-    } catch (e) {
+        } catch (e) {
       // Connection failed, not a receiver
     }
   }
