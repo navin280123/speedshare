@@ -68,120 +68,105 @@ class _FileSenderScreenState extends State<FileSenderScreen> {
   }
 
   void discoverWithUDP() async {
-    try {
-      if (!mounted) return;
-
-      setState(() {
-        _isDiscovering = true;
-        availableReceivers.clear();
-      });
-
-      // Create UDP socket for discovery
-      _discoverySocket =
-          await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
-
-      // Listen for responses
-      _discoverySocket!.listen((event) {
-        if (!mounted) {
-          _discoverySocket?.close();
-          return;
-        }
-
-        if (event == RawSocketEvent.read) {
-          final datagram = _discoverySocket!.receive();
-          if (datagram != null) {
-            final message = utf8.decode(datagram.data);
-
-            if (message.startsWith('SPEEDSHARE_RESPONSE:')) {
-              // Process response only if widget is still mounted
-              if (mounted) {
-                final parts = message.split(':');
-                if (parts.length >= 3) {
-                  final deviceName = parts[1];
-                  final ipAddress = datagram.address.address;
-
-                  setState(() {
-                    if (!availableReceivers
-                        .any((device) => device.ip == ipAddress)) {
-                      availableReceivers.add(ReceiverDevice(
-                        name: deviceName,
-                        ip: ipAddress,
-                      ));
-                    }
-                  });
+  try {
+    setState(() {
+      _isDiscovering = true;
+      availableReceivers.clear();
+    });
+    
+    // Create UDP socket for discovery
+    _discoverySocket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
+    
+    // Listen for responses
+    _discoverySocket!.listen((event) {
+      if (event == RawSocketEvent.read) {
+        final datagram = _discoverySocket!.receive();
+        if (datagram != null) {
+          final message = utf8.decode(datagram.data);
+          
+          if (message.startsWith('SPEEDSHARE_RESPONSE:')) {
+            final parts = message.split(':');
+            if (parts.length >= 3) {
+              final deviceName = parts[1];
+              final ipAddress = datagram.address.address;
+              
+              // Add to the list if not already present
+              setState(() {
+                if (!availableReceivers.any((device) => device.ip == ipAddress)) {
+                  availableReceivers.add(ReceiverDevice(
+                    name: deviceName,
+                    ip: ipAddress,
+                  ));
                 }
-              }
-            }
-          }
-        }
-      });
-
-      // Try targeted discovery instead of broadcasting
-      final interfaces = await NetworkInterface.list();
-      for (var interface in interfaces) {
-        // Skip loopback interfaces
-        if (interface.name.contains('lo')) continue;
-
-        for (var addr in interface.addresses) {
-          if (addr.type == InternetAddressType.IPv4) {
-            // Get the subnet for this network interface
-            final parts = addr.address.split('.');
-            if (parts.length == 4) {
-              final subnet = parts.sublist(0, 3).join('.');
-              final message = utf8.encode('SPEEDSHARE_DISCOVERY');
-
-              // Try sending to specific common addresses in the subnet
-              try {
-                // Try subnet's gateway (usually .1)
-                final gatewayAddress = InternetAddress('$subnet.1');
-                _discoverySocket!.send(message, gatewayAddress, 8081);
-
-                // Try device's own address (for loopback discovery)
-                final ownAddress = InternetAddress(addr.address);
-                _discoverySocket!.send(message, ownAddress, 8081);
-
-                // Try a few other common IPs
-                for (int i = 2; i < 10; i++) {
-                  _discoverySocket!
-                      .send(message, InternetAddress('$subnet.$i'), 8081);
-                }
-
-                // Try sending to subnet broadcast (less likely to be blocked)
-                _discoverySocket!
-                    .send(message, InternetAddress('$subnet.255'), 8081);
-              } catch (e) {
-                print('Failed to send discovery packet: $e');
-                // Continue trying other addresses
-              }
+              });
             }
           }
         }
       }
-
-      Timer(Duration(seconds: 2), () {
-        if (!mounted) return;
-
-        if (availableReceivers.isEmpty) {
-          checkDirectTCPConnections();
-        } else {
-          setState(() {
-            _isDiscovering = false;
-            isScanning = false;
-          });
+    });
+    
+    // Try targeted discovery instead of broadcasting
+    final interfaces = await NetworkInterface.list();
+    for (var interface in interfaces) {
+      // Skip loopback interfaces
+      if (interface.name.contains('lo')) continue;
+      
+      for (var addr in interface.addresses) {
+        if (addr.type == InternetAddressType.IPv4) {
+          // Get the subnet for this network interface
+          final parts = addr.address.split('.');
+          if (parts.length == 4) {
+            final subnet = parts.sublist(0, 3).join('.');
+            final message = utf8.encode('SPEEDSHARE_DISCOVERY');
+            
+            // Try sending to specific common addresses in the subnet
+            try {
+              // Try subnet's gateway (usually .1)
+              final gatewayAddress = InternetAddress('$subnet.1');
+              _discoverySocket!.send(message, gatewayAddress, 8081);
+              
+              // Try device's own address (for loopback discovery)
+              final ownAddress = InternetAddress(addr.address);
+              _discoverySocket!.send(message, ownAddress, 8081);
+              
+              // Try a few other common IPs
+              for (int i = 2; i < 10; i++) {
+                _discoverySocket!.send(message, InternetAddress('$subnet.$i'), 8081);
+              }
+              
+              // Try sending to subnet broadcast (less likely to be blocked)
+              _discoverySocket!.send(message, InternetAddress('$subnet.255'), 8081);
+            } catch (e) {
+              print('Failed to send discovery packet: $e');
+              // Continue trying other addresses
+            }
+          }
         }
-      });
-    } catch (e) {
-      print('UDP discovery error: $e');
-
-      // Fallback to direct TCP scanning only if still mounted
-      if (mounted) {
-        checkDirectTCPConnections();
       }
     }
+    
+    // Fall back to TCP scanning if no devices found
+    Timer(Duration(seconds: 2), () {
+      if (availableReceivers.isEmpty) {
+        checkDirectTCPConnections();
+      } else {
+        setState(() {
+          _isDiscovering = false;
+          isScanning = false;
+        });
+      }
+    });
+    
+  } catch (e) {
+    print('UDP discovery error: $e');
+    
+    // Fallback to direct TCP scanning
+    checkDirectTCPConnections();
   }
+}
 
   // Fallback method to check TCP connections directly
-  Future<void> checkDirectTCPConnections() async {
+  void checkDirectTCPConnections() async {
     try {
       final interfaces = await NetworkInterface.list();
 
@@ -198,21 +183,12 @@ class _FileSenderScreenState extends State<FileSenderScreen> {
 
               // Scan some common IPs
               for (int i = 1; i <= 10; i++) {
-                if (!mounted) return; // Check if widget is still mounted
-                await checkReceiver('$prefix.$i');
+                checkReceiver('$prefix.$i');
               }
-
-              if (!mounted) return;
-              await checkReceiver('$prefix.100');
-
-              if (!mounted) return;
-              await checkReceiver('$prefix.101');
-
-              if (!mounted) return;
-              await checkReceiver('$prefix.102');
-
-              if (!mounted) return;
-              await checkReceiver('$prefix.255');
+              checkReceiver('$prefix.100');
+              checkReceiver('$prefix.101');
+              checkReceiver('$prefix.102');
+              checkReceiver('$prefix.255');
             }
           }
         }
@@ -220,20 +196,14 @@ class _FileSenderScreenState extends State<FileSenderScreen> {
     } catch (e) {
       print('TCP discovery error: $e');
     } finally {
-      // Only call setState if the widget is still mounted
-      if (mounted) {
-        setState(() {
-          _isDiscovering = false;
-          isScanning = false;
-        });
-      }
+      setState(() {
+        _isDiscovering = false;
+        isScanning = false;
+      });
     }
   }
 
   Future<void> checkReceiver(String ip) async {
-    // Return immediately if the widget is no longer mounted
-    if (!mounted) return;
-
     try {
       // Try to connect to the potential receiver with a short timeout
       final socket =
@@ -265,8 +235,7 @@ class _FileSenderScreenState extends State<FileSenderScreen> {
         final deviceName = await completer.future;
         socket.destroy();
 
-        // Check if widget is still mounted before updating state
-        if (mounted && deviceName != null && deviceName.isNotEmpty) {
+        if (deviceName != null && deviceName.isNotEmpty) {
           setState(() {
             // Add to list if not already present
             if (!availableReceivers.any((device) => device.ip == ip)) {
@@ -743,6 +712,7 @@ class _FileSenderScreenState extends State<FileSenderScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      
       body: Container(
         color: Colors.grey[50],
         padding: EdgeInsets.all(16),
