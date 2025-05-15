@@ -6,13 +6,20 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:mime/mime.dart';
 import 'package:desktop_drop/desktop_drop.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:animate_do/animate_do.dart';
+import 'package:lottie/lottie.dart';
 
 class FileSenderScreen extends StatefulWidget {
   @override
   _FileSenderScreenState createState() => _FileSenderScreenState();
 }
 
-class _FileSenderScreenState extends State<FileSenderScreen> {
+class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerProviderStateMixin {
+  // Animation controllers
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+  
   // File handling variables
   bool _isSending = false;
   double _progress = 0.0;
@@ -42,9 +49,26 @@ class _FileSenderScreenState extends State<FileSenderScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Initialize animation controller
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    
+    _scaleAnimation = Tween<double>(begin: 0.95, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: Curves.easeOut,
+      ),
+    );
+    
+    _controller.forward();
+    
+    // Start scanning for devices
     startScanning();
 
-    // Set up periodic discovery every 30 seconds to keep the list fresh
+    // Set up periodic discovery
     _discoveryTimer = Timer.periodic(Duration(seconds: 30), (timer) {
       startScanning();
     });
@@ -67,102 +91,102 @@ class _FileSenderScreenState extends State<FileSenderScreen> {
   }
 
   void discoverWithUDP() async {
-  try {
-    setState(() {
-      _isDiscovering = true;
-      availableReceivers.clear();
-    });
-    
-    // Create UDP socket for discovery
-    _discoverySocket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
-    
-    // Listen for responses
-    _discoverySocket!.listen((event) {
-      if (event == RawSocketEvent.read) {
-        final datagram = _discoverySocket!.receive();
-        if (datagram != null) {
-          final message = utf8.decode(datagram.data);
-          
-          if (message.startsWith('SPEEDSHARE_RESPONSE:')) {
-            final parts = message.split(':');
-            if (parts.length >= 3) {
-              final deviceName = parts[1];
-              final ipAddress = datagram.address.address;
-              
-              // Add to the list if not already present
-              setState(() {
-                if (!availableReceivers.any((device) => device.ip == ipAddress)) {
-                  availableReceivers.add(ReceiverDevice(
-                    name: deviceName,
-                    ip: ipAddress,
-                  ));
-                }
-              });
-            }
-          }
-        }
-      }
-    });
-    
-    // Try targeted discovery instead of broadcasting
-    final interfaces = await NetworkInterface.list();
-    for (var interface in interfaces) {
-      // Skip loopback interfaces
-      if (interface.name.contains('lo')) continue;
+    try {
+      setState(() {
+        _isDiscovering = true;
+        availableReceivers.clear();
+      });
       
-      for (var addr in interface.addresses) {
-        if (addr.type == InternetAddressType.IPv4) {
-          // Get the subnet for this network interface
-          final parts = addr.address.split('.');
-          if (parts.length == 4) {
-            final subnet = parts.sublist(0, 3).join('.');
-            final message = utf8.encode('SPEEDSHARE_DISCOVERY');
+      // Create UDP socket for discovery
+      _discoverySocket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
+      
+      // Listen for responses
+      _discoverySocket!.listen((event) {
+        if (event == RawSocketEvent.read) {
+          final datagram = _discoverySocket!.receive();
+          if (datagram != null) {
+            final message = utf8.decode(datagram.data);
             
-            // Try sending to specific common addresses in the subnet
-            try {
-              // Try subnet's gateway (usually .1)
-              final gatewayAddress = InternetAddress('$subnet.1');
-              _discoverySocket!.send(message, gatewayAddress, 8081);
-              
-              // Try device's own address (for loopback discovery)
-              final ownAddress = InternetAddress(addr.address);
-              _discoverySocket!.send(message, ownAddress, 8081);
-              
-              // Try a few other common IPs
-              for (int i = 2; i < 10; i++) {
-                _discoverySocket!.send(message, InternetAddress('$subnet.$i'), 8081);
+            if (message.startsWith('SPEEDSHARE_RESPONSE:')) {
+              final parts = message.split(':');
+              if (parts.length >= 3) {
+                final deviceName = parts[1];
+                final ipAddress = datagram.address.address;
+                
+                // Add to the list if not already present
+                setState(() {
+                  if (!availableReceivers.any((device) => device.ip == ipAddress)) {
+                    availableReceivers.add(ReceiverDevice(
+                      name: deviceName,
+                      ip: ipAddress,
+                    ));
+                  }
+                });
               }
+            }
+          }
+        }
+      });
+      
+      // Try targeted discovery instead of broadcasting
+      final interfaces = await NetworkInterface.list();
+      for (var interface in interfaces) {
+        // Skip loopback interfaces
+        if (interface.name.contains('lo')) continue;
+        
+        for (var addr in interface.addresses) {
+          if (addr.type == InternetAddressType.IPv4) {
+            // Get the subnet for this network interface
+            final parts = addr.address.split('.');
+            if (parts.length == 4) {
+              final subnet = parts.sublist(0, 3).join('.');
+              final message = utf8.encode('SPEEDSHARE_DISCOVERY');
               
-              // Try sending to subnet broadcast (less likely to be blocked)
-              _discoverySocket!.send(message, InternetAddress('$subnet.255'), 8081);
-            } catch (e) {
-              print('Failed to send discovery packet: $e');
-              // Continue trying other addresses
+              // Try sending to specific common addresses in the subnet
+              try {
+                // Try subnet's gateway (usually .1)
+                final gatewayAddress = InternetAddress('$subnet.1');
+                _discoverySocket!.send(message, gatewayAddress, 8081);
+                
+                // Try device's own address (for loopback discovery)
+                final ownAddress = InternetAddress(addr.address);
+                _discoverySocket!.send(message, ownAddress, 8081);
+                
+                // Try a few other common IPs
+                for (int i = 2; i < 10; i++) {
+                  _discoverySocket!.send(message, InternetAddress('$subnet.$i'), 8081);
+                }
+                
+                // Try sending to subnet broadcast (less likely to be blocked)
+                _discoverySocket!.send(message, InternetAddress('$subnet.255'), 8081);
+              } catch (e) {
+                print('Failed to send discovery packet: $e');
+                // Continue trying other addresses
+              }
             }
           }
         }
       }
+      
+      // Fall back to TCP scanning if no devices found
+      Timer(Duration(seconds: 2), () {
+        if (availableReceivers.isEmpty) {
+          checkDirectTCPConnections();
+        } else {
+          setState(() {
+            _isDiscovering = false;
+            isScanning = false;
+          });
+        }
+      });
+      
+    } catch (e) {
+      print('UDP discovery error: $e');
+      
+      // Fallback to direct TCP scanning
+      checkDirectTCPConnections();
     }
-    
-    // Fall back to TCP scanning if no devices found
-    Timer(Duration(seconds: 2), () {
-      if (availableReceivers.isEmpty) {
-        checkDirectTCPConnections();
-      } else {
-        setState(() {
-          _isDiscovering = false;
-          isScanning = false;
-        });
-      }
-    });
-    
-  } catch (e) {
-    print('UDP discovery error: $e');
-    
-    // Fallback to direct TCP scanning
-    checkDirectTCPConnections();
   }
-}
 
   // Fallback method to check TCP connections directly
   void checkDirectTCPConnections() async {
@@ -244,7 +268,7 @@ class _FileSenderScreenState extends State<FileSenderScreen> {
           }
         });
       }
-        } catch (e) {
+    } catch (e) {
       // Connection failed, not a receiver
     }
   }
@@ -255,6 +279,9 @@ class _FileSenderScreenState extends State<FileSenderScreen> {
         SnackBar(
           content: Text('Please select a file first'),
           backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          margin: EdgeInsets.all(20),
         ),
       );
       return;
@@ -306,8 +333,17 @@ class _FileSenderScreenState extends State<FileSenderScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Connected to $deviceName'),
+          content: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 10),
+              Text('Connected to $deviceName'),
+            ],
+          ),
           backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          margin: EdgeInsets.all(20),
         ),
       );
 
@@ -332,6 +368,8 @@ class _FileSenderScreenState extends State<FileSenderScreen> {
           SnackBar(
             content: Text('Connection error: $error'),
             backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
         );
       }, onDone: () {
@@ -343,6 +381,8 @@ class _FileSenderScreenState extends State<FileSenderScreen> {
             SnackBar(
               content: Text('Connection closed unexpectedly'),
               backgroundColor: Colors.red,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
           );
         }
@@ -356,8 +396,16 @@ class _FileSenderScreenState extends State<FileSenderScreen> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to connect: $e'),
+          content: Row(
+            children: [
+              Icon(Icons.error, color: Colors.white),
+              SizedBox(width: 10),
+              Text('Failed to connect: $e'),
+            ],
+          ),
           backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
       );
     }
@@ -367,6 +415,10 @@ class _FileSenderScreenState extends State<FileSenderScreen> {
     FilePickerResult? result = await FilePicker.platform.pickFiles();
     if (result != null) {
       _prepareFile(File(result.files.single.path!));
+      
+      // Play animation
+      _controller.reset();
+      _controller.forward();
     }
   }
 
@@ -463,8 +515,16 @@ class _FileSenderScreenState extends State<FileSenderScreen> {
 
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('File sent successfully!'),
+              content: Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.white),
+                  SizedBox(width: 10),
+                  Text('File sent successfully!'),
+                ],
+              ),
               backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
           );
         }
@@ -476,8 +536,16 @@ class _FileSenderScreenState extends State<FileSenderScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error sending file: $e'),
+          content: Row(
+            children: [
+              Icon(Icons.error, color: Colors.white),
+              SizedBox(width: 10),
+              Text('Error sending file: $e'),
+            ],
+          ),
           backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
       );
     }
@@ -488,124 +556,164 @@ class _FileSenderScreenState extends State<FileSenderScreen> {
     Color iconColor;
 
     if (_fileType.startsWith('image/')) {
-      iconData = Icons.image;
+      iconData = Icons.image_rounded;
       iconColor = Colors.blue;
     } else if (_fileType.startsWith('video/')) {
-      iconData = Icons.video_file;
+      iconData = Icons.video_file_rounded;
       iconColor = Colors.red;
     } else if (_fileType.startsWith('audio/')) {
-      iconData = Icons.audio_file;
+      iconData = Icons.audio_file_rounded;
       iconColor = Colors.purple;
     } else if (_fileType.contains('pdf')) {
-      iconData = Icons.picture_as_pdf;
+      iconData = Icons.picture_as_pdf_rounded;
       iconColor = Colors.red;
     } else if (_fileType.contains('word') || _fileType.contains('document')) {
-      iconData = Icons.description;
+      iconData = Icons.description_rounded;
       iconColor = Colors.blue;
     } else if (_fileType.contains('excel') || _fileType.contains('sheet')) {
-      iconData = Icons.table_chart;
+      iconData = Icons.table_chart_rounded;
       iconColor = Colors.green;
     } else if (_fileType.contains('presentation') ||
         _fileType.contains('powerpoint')) {
-      iconData = Icons.slideshow;
+      iconData = Icons.slideshow_rounded;
       iconColor = Colors.orange;
     } else if (_fileType.contains('zip') || _fileType.contains('compressed')) {
-      iconData = Icons.folder_zip;
+      iconData = Icons.folder_zip_rounded;
       iconColor = Colors.amber;
     } else {
-      iconData = Icons.insert_drive_file;
+      iconData = Icons.insert_drive_file_rounded;
       iconColor = Colors.grey;
     }
 
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(iconData, size: 40, color: iconColor),
-                SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _fileName,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        '${_formatFileSize(_fileSize)} • ${_fileType.split('/').last.toUpperCase()}',
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  icon: Icon(Icons.close),
-                  onPressed: () {
-                    setState(() {
-                      _fileSelected = false;
-                      _selectedFile = null;
-                      _transferComplete = false;
-                    });
-                  },
-                  tooltip: 'Remove',
-                ),
-              ],
-            ),
-            if (_isSending || _transferComplete) ...[
-              SizedBox(height: 16),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: LinearProgressIndicator(
-                  value: _progress,
-                  backgroundColor: Colors.grey[200],
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    _transferComplete ? Colors.green : Colors.blue,
-                  ),
-                  minHeight: 8,
-                ),
-              ),
-              SizedBox(height: 8),
+    return ScaleTransition(
+      scale: _scaleAnimation,
+      child: Card(
+        elevation: 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    '${(_progress * 100).toStringAsFixed(1)}%',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: _transferComplete ? Colors.green : Colors.blue,
+                  Container(
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: iconColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(iconData, size: 36, color: iconColor),
+                  ),
+                  SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _fileName,
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          '${_formatFileSize(_fileSize)} • ${_fileType.split('/').last.toUpperCase()}',
+                          style: GoogleFonts.poppins(
+                            color: Colors.grey[600],
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  Text(
-                    _transferComplete ? 'Complete' : 'Sending...',
-                    style: TextStyle(
-                      fontStyle: _transferComplete
-                          ? FontStyle.normal
-                          : FontStyle.italic,
-                      fontWeight: _transferComplete
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                      color: _transferComplete ? Colors.green : Colors.blue,
+                  IconButton(
+                    icon: Icon(Icons.close_rounded),
+                    onPressed: () {
+                      setState(() {
+                        _fileSelected = false;
+                        _selectedFile = null;
+                        _transferComplete = false;
+                      });
+                    },
+                    tooltip: 'Remove',
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.grey.withOpacity(0.1),
                     ),
                   ),
                 ],
               ),
+              if (_isSending || _transferComplete) ...[
+                SizedBox(height: 20),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: LinearProgressIndicator(
+                    value: _progress,
+                    backgroundColor: Colors.grey[200],
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      _transferComplete ? Color(0xFF2AB673) : Color(0xFF4E6AF3),
+                    ),
+                    minHeight: 8,
+                  ),
+                ),
+                SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '${(_progress * 100).toStringAsFixed(1)}%',
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.bold,
+                        color: _transferComplete ? Color(0xFF2AB673) : Color(0xFF4E6AF3),
+                      ),
+                    ),
+                    AnimatedSwitcher(
+                      duration: Duration(milliseconds: 300),
+                      child: _transferComplete
+                          ? Row(
+                              key: ValueKey('complete'),
+                              children: [
+                                Icon(Icons.check_circle, color: Color(0xFF2AB673), size: 16),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Complete',
+                                  style: GoogleFonts.poppins(
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF2AB673),
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Row(
+                              key: ValueKey('sending'),
+                              children: [
+                                SizedBox(
+                                  width: 12,
+                                  height: 12,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4E6AF3)),
+                                  ),
+                                ),
+                                SizedBox(width: 6),
+                                Text(
+                                  'Sending...',
+                                  style: GoogleFonts.poppins(
+                                    fontStyle: FontStyle.italic,
+                                    color: Color(0xFF4E6AF3),
+                                  ),
+                                ),
+                              ],
+                            ),
+                    ),
+                  ],
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -613,6 +721,7 @@ class _FileSenderScreenState extends State<FileSenderScreen> {
 
   @override
   void dispose() {
+    _controller.dispose();
     _scanTimer?.cancel();
     _discoveryTimer?.cancel();
     _discoverySocket?.close();
@@ -630,6 +739,10 @@ class _FileSenderScreenState extends State<FileSenderScreen> {
           final file = detail.files.first;
           final fileData = File(file.path);
           _prepareFile(fileData);
+          
+          // Play animation
+          _controller.reset();
+          _controller.forward();
         }
       },
       onDragEntered: (detail) {
@@ -642,14 +755,15 @@ class _FileSenderScreenState extends State<FileSenderScreen> {
           _isHovering = false;
         });
       },
-      child: Container(
+      child: AnimatedContainer(
+        duration: Duration(milliseconds: 300),
         decoration: BoxDecoration(
           color: _isHovering
-              ? Colors.blue.withOpacity(0.1)
+              ? Color(0xFF4E6AF3).withOpacity(0.1)
               : Colors.grey.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: _isHovering ? Colors.blue : Colors.grey.withOpacity(0.3),
+            color: _isHovering ? Color(0xFF4E6AF3) : Colors.grey.withOpacity(0.3),
             width: 2,
             style: BorderStyle.solid,
           ),
@@ -660,42 +774,44 @@ class _FileSenderScreenState extends State<FileSenderScreen> {
             Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  Icons.cloud_upload,
-                  size: 64,
-                  color: _isHovering ? Colors.blue : Colors.grey,
+                Lottie.asset(
+                  'assets/file_upload_animation.json',
+                  height: 120,
+                  animate: _isHovering,
                 ),
                 SizedBox(height: 16),
                 Text(
-                  'Drop Files Here',
-                  style: TextStyle(
+                  _isHovering ? 'Release to Upload' : 'Drop Files Here',
+                  style: GoogleFonts.poppins(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    color: _isHovering ? Colors.blue : Colors.grey[700],
+                    color: _isHovering ? Color(0xFF4E6AF3) : Colors.grey[700],
                   ),
                 ),
                 SizedBox(height: 8),
                 Text(
                   'or',
-                  style: TextStyle(
+                  style: GoogleFonts.poppins(
                     color: Colors.grey[600],
                   ),
                 ),
                 SizedBox(height: 16),
                 ElevatedButton.icon(
                   onPressed: _pickFile,
-                  icon: Icon(Icons.add),
+                  icon: Icon(Icons.add_rounded),
                   label: Text('Select File'),
                   style: ElevatedButton.styleFrom(
                     foregroundColor: Colors.white,
-                    backgroundColor: Colors.blue,
+                    backgroundColor: Color(0xFF4E6AF3),
                     padding: EdgeInsets.symmetric(
                       horizontal: 24,
                       vertical: 12,
                     ),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(12),
                     ),
+                    elevation: 4,
+                    shadowColor: Color(0xFF4E6AF3).withOpacity(0.3),
                   ),
                 ),
               ],
@@ -708,304 +824,620 @@ class _FileSenderScreenState extends State<FileSenderScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Get screen size for responsive design
+    final Size screenSize = MediaQuery.of(context).size;
+    final bool isSmallScreen = screenSize.width < 1000;
+    final bool isMediumScreen = screenSize.width >= 1000 && screenSize.width < 1400;
+    
     return Scaffold(
-      
-      body: Container(
-        color: Colors.grey[50],
-        padding: EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header section
-            Text(
-              'Send Files',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.blue,
-              ),
-            ),
-            SizedBox(height: 4),
-            Text(
-              'Select files and a receiver to start sending',
-              style: TextStyle(
-                color: Colors.grey[600],
-                fontSize: 14,
-              ),
-            ),
-            SizedBox(height: 24),
-
-            // Main content area
-            Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Left side: File selection
-                  Expanded(
-                    flex: 3,
-                    child: Card(
-                      elevation: 2,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+      body: FadeIn(
+        duration: Duration(milliseconds: 500),
+        child: Container(
+          color: Colors.grey[50],
+          padding: EdgeInsets.all(isSmallScreen ? 12 : 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header section
+              FadeInDown(
+                duration: Duration(milliseconds: 500),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Color(0xFF4E6AF3).withOpacity(0.1),
+                        shape: BoxShape.circle,
                       ),
-                      child: Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Selected File',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                                color: Colors.blue,
-                              ),
-                            ),
-                            SizedBox(height: 16),
-
-                            // File area
-                            Expanded(
-                              child: _fileSelected
-                                  ? _buildFilePreview()
-                                  : _buildFileDropArea(),
-                            ),
-                          ],
-                        ),
+                      child: Icon(
+                        Icons.send_rounded,
+                        size: 24,
+                        color: Color(0xFF4E6AF3),
                       ),
                     ),
-                  ),
+                    SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Send Files',
+                          style: GoogleFonts.poppins(
+                            fontSize: isSmallScreen ? 20 : 24,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF4E6AF3),
+                          ),
+                        ),
+                        Text(
+                          'Select files and a receiver to start sending',
+                          style: GoogleFonts.poppins(
+                            color: Colors.grey[600],
+                            fontSize: isSmallScreen ? 12 : 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: 24),
 
-                  SizedBox(width: 16),
+              // Main content area
+              Expanded(
+                child: isSmallScreen
+                    ? _buildMobileLayout()
+                    : _buildDesktopLayout(isMediumScreen),
+              ),
 
-                  // Right side: Receiver selection
-                  Expanded(
-                    flex: 2,
-                    child: Card(
-                      elevation: 2,
+              // Bottom section: Send button
+              SizedBox(height: 16),
+              FadeInUp(
+                duration: Duration(milliseconds: 500),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 54,
+                  child: ElevatedButton.icon(
+                    onPressed: (_fileSelected &&
+                            _selectedReceiverIndex >= 0 &&
+                            _selectedReceiverIndex < availableReceivers.length &&
+                            !_isSending &&
+                            !_transferComplete &&
+                            !isConnecting)
+                        ? () => connectToReceiver(
+                            availableReceivers[_selectedReceiverIndex].ip,
+                            availableReceivers[_selectedReceiverIndex].name)
+                        : null,
+                    icon: isConnecting
+                        ? SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : Icon(Icons.send_rounded),
+                    label: Text(
+                      isConnecting ? 'Connecting...' : 'Send File',
+                      style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      backgroundColor: Color(0xFF4E6AF3),
+                      disabledBackgroundColor: Colors.grey[300],
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  'Available Receivers',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                    color: Colors.blue,
+                      elevation: 4,
+                      shadowColor: Color(0xFF4E6AF3).withOpacity(0.3),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildMobileLayout() {
+    return Column(
+      children: [
+        // File section
+        Expanded(
+          flex: 3,
+          child: FadeInLeft(
+            duration: Duration(milliseconds: 600),
+            child: Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Selected File',
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: Color(0xFF4E6AF3),
+                      ),
+                    ),
+                    SizedBox(height: 12),
+
+                    // File area
+                    Expanded(
+                      child: _fileSelected
+                          ? _buildFilePreview()
+                          : _buildFileDropArea(),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+
+        SizedBox(height: 16),
+
+        // Receiver section
+        Expanded(
+          flex: 4,
+          child: FadeInRight(
+            duration: Duration(milliseconds: 600),
+            child: Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Available Receivers',
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            color: Color(0xFF4E6AF3),
+                          ),
+                        ),
+                        if (isScanning)
+                          SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4E6AF3)),
+                            ),
+                          ),
+                      ],
+                    ),
+                    SizedBox(height: 12),
+
+                    // Receiver list
+                    Expanded(
+                      child: availableReceivers.isEmpty
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Lottie.asset(
+                                    'assets/searching_animation.json',
+                                    height: 120,
                                   ),
-                                ),
-                                if (isScanning)
-                                  SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                          Colors.blue),
+                                  SizedBox(height: 16),
+                                  Text(
+                                    'No receivers found',
+                                    style: GoogleFonts.poppins(
+                                      color: Colors.grey[600],
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.normal,
                                     ),
                                   ),
-                              ],
-                            ),
-                            SizedBox(height: 16),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    'Make sure devices are online and\nhave receiving mode enabled',
+                                    textAlign: TextAlign.center,
+                                    style: GoogleFonts.poppins(
+                                      color: Colors.grey[500],
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : ListView.builder(
+                              itemCount: availableReceivers.length,
+                              itemBuilder: (context, index) {
+                                final receiver = availableReceivers[index];
+                                final isSelected = _selectedReceiverIndex == index;
 
-                            // Receiver list
-                            Expanded(
-                              child: availableReceivers.isEmpty
-                                  ? Center(
-                                      child: Column(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Icon(
-                                            Icons.devices_other,
-                                            size: 48,
-                                            color: Colors.grey[400],
-                                          ),
-                                          SizedBox(height: 16),
-                                          Text(
-                                            'No receivers found',
-                                            style: TextStyle(
-                                              color: Colors.grey[600],
-                                              fontSize: 16,
-                                            ),
-                                          ),
-                                          SizedBox(height: 8),
-                                          Text(
-                                            'Make sure devices are online and\nhave receiving mode enabled',
-                                            textAlign: TextAlign.center,
-                                            style: TextStyle(
-                                              color: Colors.grey[500],
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                        ],
+                                return FadeInUp(
+                                  duration: Duration(milliseconds: 200 + (index * 50)),
+                                  child: Card(
+                                    elevation: isSelected ? 4 : 0,
+                                    margin: EdgeInsets.only(bottom: 8),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      side: BorderSide(
+                                        color: isSelected
+                                            ? Color(0xFF4E6AF3)
+                                            : Colors.transparent,
+                                        width: 2,
                                       ),
-                                    )
-                                  : ListView.builder(
-                                      itemCount: availableReceivers.length,
-                                      itemBuilder: (context, index) {
-                                        final receiver =
-                                            availableReceivers[index];
-                                        final isSelected =
-                                            _selectedReceiverIndex == index;
-
-                                        return Card(
-                                          elevation: isSelected ? 4 : 0,
-                                          margin: EdgeInsets.only(bottom: 8),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(8),
-                                            side: BorderSide(
-                                              color: isSelected
-                                                  ? Colors.blue
-                                                  : Colors.transparent,
-                                              width: 2,
+                                    ),
+                                    color: isSelected
+                                        ? Color(0xFF4E6AF3).withOpacity(0.05)
+                                        : null,
+                                    child: InkWell(
+                                      onTap: () {
+                                        setState(() {
+                                          _selectedReceiverIndex = index;
+                                        });
+                                      },
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Padding(
+                                        padding: EdgeInsets.all(12),
+                                        child: Row(
+                                          children: [
+                                            Container(
+                                              width: 44,
+                                              height: 44,
+                                                                                            decoration: BoxDecoration(
+                                                color: isSelected
+                                                    ? Color(0xFF4E6AF3).withOpacity(0.2)
+                                                    : Colors.grey.withOpacity(0.1),
+                                                shape: BoxShape.circle,
+                                              ),
+                                              child: Icon(
+                                                Icons.computer_rounded,
+                                                color: isSelected
+                                                    ? Color(0xFF4E6AF3)
+                                                    : Colors.grey[700],
+                                              ),
                                             ),
-                                          ),
-                                          color: isSelected
-                                              ? Colors.blue.withOpacity(0.1)
-                                              : null,
-                                          child: InkWell(
-                                            onTap: () {
-                                              setState(() {
-                                                _selectedReceiverIndex = index;
-                                              });
-                                            },
-                                            borderRadius:
-                                                BorderRadius.circular(8),
-                                            child: Padding(
-                                              padding: EdgeInsets.all(12),
-                                              child: Row(
+                                            SizedBox(width: 12),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
                                                 children: [
-                                                  Container(
-                                                    width: 40,
-                                                    height: 40,
-                                                    decoration: BoxDecoration(
+                                                  Text(
+                                                    receiver.name,
+                                                    style: GoogleFonts.poppins(
+                                                      fontWeight: FontWeight.bold,
                                                       color: isSelected
-                                                          ? Colors.blue
-                                                              .withOpacity(0.2)
-                                                          : Colors.grey
-                                                              .withOpacity(0.1),
-                                                      shape: BoxShape.circle,
-                                                    ),
-                                                    child: Icon(
-                                                      Icons.computer,
-                                                      color: isSelected
-                                                          ? Colors.blue
-                                                          : Colors.grey[700],
+                                                          ? Color(0xFF4E6AF3)
+                                                          : Colors.grey[900],
                                                     ),
                                                   ),
-                                                  SizedBox(width: 12),
-                                                  Expanded(
-                                                    child: Column(
-                                                      crossAxisAlignment:
-                                                          CrossAxisAlignment
-                                                              .start,
-                                                      children: [
-                                                        Text(
-                                                          receiver.name,
-                                                          style: TextStyle(
-                                                            fontWeight:
-                                                                FontWeight.bold,
-                                                            color: isSelected
-                                                                ? Colors.blue
-                                                                : null,
-                                                          ),
-                                                        ),
-                                                        SizedBox(height: 4),
-                                                        Text(
-                                                          receiver.ip,
-                                                          style: TextStyle(
-                                                            fontSize: 12,
-                                                            color: Colors
-                                                                .grey[600],
-                                                          ),
-                                                        ),
-                                                      ],
+                                                  SizedBox(height: 4),
+                                                  Text(
+                                                    receiver.ip,
+                                                    style: GoogleFonts.poppins(
+                                                      fontSize: 12,
+                                                      color: Colors.grey[600],
                                                     ),
                                                   ),
-                                                  if (isSelected)
-                                                    Icon(
-                                                      Icons.check_circle,
-                                                      color: Colors.blue,
-                                                    ),
                                                 ],
                                               ),
                                             ),
-                                          ),
-                                        );
-                                      },
+                                            AnimatedOpacity(
+                                              opacity: isSelected ? 1.0 : 0.0,
+                                              duration: Duration(milliseconds: 200),
+                                              child: Icon(
+                                                Icons.check_circle_rounded,
+                                                color: Color(0xFF4E6AF3),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
                                     ),
+                                  ),
+                                );
+                              },
                             ),
+                    ),
 
-                            SizedBox(height: 16),
+                    SizedBox(height: 12),
 
-                            // Refresh button
-                            ElevatedButton.icon(
-                              onPressed: isScanning ? null : startScanning,
-                              icon: Icon(Icons.refresh),
-                              label: Text('Refresh'),
-                              style: ElevatedButton.styleFrom(
-                                foregroundColor: Colors.blue,
-                                backgroundColor: Colors.blue.withOpacity(0.1),
-                                elevation: 0,
-                                padding: EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 12),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
+                    // Refresh button
+                    ElevatedButton.icon(
+                      onPressed: isScanning ? null : startScanning,
+                      icon: Icon(Icons.refresh_rounded),
+                      label: Text('Refresh'),
+                      style: ElevatedButton.styleFrom(
+                        foregroundColor: Color(0xFF4E6AF3),
+                        backgroundColor: Color(0xFF4E6AF3).withOpacity(0.1),
+                        elevation: 0,
+                        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        disabledForegroundColor: Colors.grey.withOpacity(0.4),
+                        disabledBackgroundColor: Colors.grey.withOpacity(0.1),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+  
+  Widget _buildDesktopLayout(bool isMediumScreen) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Left side: File selection
+        Expanded(
+          flex: 3,
+          child: FadeInLeft(
+            duration: Duration(milliseconds: 600),
+            child: Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Padding(
+                padding: EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Selected File',
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                        color: Color(0xFF4E6AF3),
+                      ),
+                    ),
+                    SizedBox(height: 20),
+
+                    // File area
+                    Expanded(
+                      child: _fileSelected
+                          ? _buildFilePreview()
+                          : _buildFileDropArea(),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+
+        SizedBox(width: 20),
+
+        // Right side: Receiver selection
+        Expanded(
+          flex: isMediumScreen ? 2 : 2,
+          child: FadeInRight(
+            duration: Duration(milliseconds: 600),
+            child: Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Padding(
+                padding: EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Available Receivers',
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                            color: Color(0xFF4E6AF3),
+                          ),
+                        ),
+                        if (isScanning)
+                          SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4E6AF3)),
+                            ),
+                          ),
+                      ],
+                    ),
+                    SizedBox(height: 20),
+
+                    // Receiver list
+                    Expanded(
+                      child: availableReceivers.isEmpty
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Lottie.asset(
+                                    'assets/searching_animation.json',
+                                    height: 150,
+                                  ),
+                                  SizedBox(height: 24),
+                                  Text(
+                                    'No receivers found',
+                                    style: GoogleFonts.poppins(
+                                      color: Colors.grey[700],
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    'Make sure devices are online and\nhave receiving mode enabled',
+                                    textAlign: TextAlign.center,
+                                    style: GoogleFonts.poppins(
+                                      color: Colors.grey[600],
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
                               ),
+                            )
+                          : ListView.builder(
+                              itemCount: availableReceivers.length,
+                              itemBuilder: (context, index) {
+                                final receiver = availableReceivers[index];
+                                final isSelected = _selectedReceiverIndex == index;
+
+                                return FadeInUp(
+                                  duration: Duration(milliseconds: 200 + (index * 50)),
+                                  child: Card(
+                                    elevation: isSelected ? 3 : 0,
+                                    margin: EdgeInsets.only(bottom: 12),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                      side: BorderSide(
+                                        color: isSelected
+                                            ? Color(0xFF4E6AF3)
+                                            : Colors.transparent,
+                                        width: 2,
+                                      ),
+                                    ),
+                                    color: isSelected
+                                        ? Color(0xFF4E6AF3).withOpacity(0.05)
+                                        : Colors.white,
+                                    child: InkWell(
+                                      onTap: () {
+                                        setState(() {
+                                          _selectedReceiverIndex = index;
+                                        });
+                                      },
+                                      borderRadius: BorderRadius.circular(14),
+                                      child: Padding(
+                                        padding: EdgeInsets.all(16),
+                                        child: Row(
+                                          children: [
+                                            Container(
+                                              width: 50,
+                                              height: 50,
+                                              decoration: BoxDecoration(
+                                                color: isSelected
+                                                    ? Color(0xFF4E6AF3).withOpacity(0.2)
+                                                    : Colors.grey.withOpacity(0.1),
+                                                shape: BoxShape.circle,
+                                                boxShadow: isSelected ? [
+                                                  BoxShadow(
+                                                    color: Color(0xFF4E6AF3).withOpacity(0.2),
+                                                    blurRadius: 8,
+                                                    offset: Offset(0, 2),
+                                                  )
+                                                ] : null,
+                                              ),
+                                              child: Icon(
+                                                Icons.computer_rounded,
+                                                color: isSelected
+                                                    ? Color(0xFF4E6AF3)
+                                                    : Colors.grey[700],
+                                                size: 24,
+                                              ),
+                                            ),
+                                            SizedBox(width: 16),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    receiver.name,
+                                                    style: GoogleFonts.poppins(
+                                                      fontWeight: FontWeight.bold,
+                                                      fontSize: 16,
+                                                      color: isSelected
+                                                          ? Color(0xFF4E6AF3)
+                                                          : Colors.grey[900],
+                                                    ),
+                                                  ),
+                                                  SizedBox(height: 4),
+                                                  Text(
+                                                    receiver.ip,
+                                                    style: GoogleFonts.poppins(
+                                                      fontSize: 13,
+                                                      color: Colors.grey[600],
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            AnimatedContainer(
+                                              duration: Duration(milliseconds: 200),
+                                              padding: EdgeInsets.all(isSelected ? 8 : 0),
+                                              decoration: BoxDecoration(
+                                                color: isSelected ? Color(0xFF4E6AF3).withOpacity(0.1) : Colors.transparent,
+                                                shape: BoxShape.circle,
+                                              ),
+                                              child: AnimatedOpacity(
+                                                opacity: isSelected ? 1.0 : 0.0,
+                                                duration: Duration(milliseconds: 200),
+                                                child: Icon(
+                                                  Icons.check_circle_rounded,
+                                                  color: Color(0xFF4E6AF3),
+                                                  size: 24,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
-                          ],
+                    ),
+
+                    SizedBox(height: 16),
+
+                    // Refresh button
+                    ElevatedButton.icon(
+                      onPressed: isScanning ? null : startScanning,
+                      icon: isScanning 
+                          ? SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Color(0xFF4E6AF3),
+                              ),
+                            )
+                          : Icon(Icons.refresh_rounded),
+                      label: Text(isScanning ? 'Scanning...' : 'Refresh'),
+                      style: ElevatedButton.styleFrom(
+                        foregroundColor: Color(0xFF4E6AF3),
+                        backgroundColor: Color(0xFF4E6AF3).withOpacity(0.1),
+                        elevation: 0,
+                        padding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        textStyle: GoogleFonts.poppins(
+                          fontWeight: FontWeight.normal,
                         ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Bottom section: Send button
-            SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton.icon(
-                onPressed: (_fileSelected &&
-                        _selectedReceiverIndex >= 0 &&
-                        _selectedReceiverIndex < availableReceivers.length &&
-                        !_isSending &&
-                        !_transferComplete &&
-                        !isConnecting)
-                    ? () => connectToReceiver(
-                        availableReceivers[_selectedReceiverIndex].ip,
-                        availableReceivers[_selectedReceiverIndex].name)
-                    : null,
-                icon: Icon(Icons.send),
-                label: Text(
-                  isConnecting ? 'Connecting...' : 'Send File',
-                  style: TextStyle(fontSize: 16),
-                ),
-                style: ElevatedButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  backgroundColor: Colors.blue,
-                  disabledBackgroundColor: Colors.grey[300],
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
+                  ],
                 ),
               ),
             ),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 }
