@@ -4,6 +4,7 @@ import 'package:speedshare/ReceiveScreen.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:lottie/lottie.dart';
+import 'package:speedshare/SettingScreen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -12,11 +13,12 @@ class MainScreen extends StatefulWidget {
   State<MainScreen> createState() => _MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateMixin {
+class _MainScreenState extends State<MainScreen>
+    with SingleTickerProviderStateMixin {
   int _selectedIndex = -1;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
-  
+
   final List<Map<String, dynamic>> _sidebarOptions = [
     {
       'title': 'Send',
@@ -29,6 +31,12 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
       'icon': Icons.download_rounded,
       'description': 'Receive Files',
       'color': Color(0xFF2AB673)
+    },
+    {
+      'title': 'Settings',
+      'icon': Icons.settings_rounded,
+      'description': 'Configure preferences',
+      'color': Color(0xFF8B54D3)
     },
     // Add more options here in the future
     // {
@@ -46,14 +54,14 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
       duration: const Duration(milliseconds: 500),
       vsync: this,
     );
-    
+
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _animationController,
         curve: Curves.easeOut,
       ),
     );
-    
+
     _animationController.forward();
   }
 
@@ -68,15 +76,13 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
     // Get screen size for responsive design
     final Size screenSize = MediaQuery.of(context).size;
     final bool isSmallScreen = screenSize.width < 1000;
-    
+
     return Scaffold(
       // Use a responsive layout that changes based on screen size
-      body: isSmallScreen
-          ? _buildMobileLayout()
-          : _buildDesktopLayout(),
+      body: isSmallScreen ? _buildMobileLayout() : _buildDesktopLayout(),
     );
   }
-  
+
   Widget _buildDesktopLayout() {
     return Row(
       children: [
@@ -153,8 +159,11 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                     ),
                   ),
                 ),
-                Divider(height: 1, thickness: 1, color: Colors.grey.withOpacity(0.1)),
-                
+                Divider(
+                    height: 1,
+                    thickness: 1,
+                    color: Colors.grey.withOpacity(0.1)),
+
                 // Menu options with staggered animation
                 Expanded(
                   child: ListView.builder(
@@ -163,15 +172,16 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                     itemBuilder: (context, index) {
                       final option = _sidebarOptions[index];
                       final isSelected = _selectedIndex == index;
-                      
+
                       return FadeInLeft(
                         delay: Duration(milliseconds: 100 * index),
                         duration: Duration(milliseconds: 400),
                         child: Container(
-                          margin: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                          margin:
+                              EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(16),
-                            gradient: isSelected 
+                            gradient: isSelected
                                 ? LinearGradient(
                                     colors: [
                                       option['color'].withOpacity(0.15),
@@ -181,13 +191,15 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                                     end: Alignment.centerRight,
                                   )
                                 : null,
-                            boxShadow: isSelected ? [
-                              BoxShadow(
-                                color: option['color'].withOpacity(0.1),
-                                blurRadius: 10,
-                                offset: Offset(0, 3),
-                              ),
-                            ] : null,
+                            boxShadow: isSelected
+                                ? [
+                                    BoxShadow(
+                                      color: option['color'].withOpacity(0.1),
+                                      blurRadius: 10,
+                                      offset: Offset(0, 3),
+                                    ),
+                                  ]
+                                : null,
                           ),
                           child: Material(
                             color: Colors.transparent,
@@ -204,7 +216,8 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                                 });
                               },
                               child: Padding(
-                                padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                                padding: EdgeInsets.symmetric(
+                                    vertical: 12, horizontal: 16),
                                 child: Row(
                                   children: [
                                     AnimatedContainer(
@@ -218,19 +231,26 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                                       ),
                                       child: Icon(
                                         option['icon'],
-                                        color: isSelected ? option['color'] : Colors.grey[700],
+                                        color: isSelected
+                                            ? option['color']
+                                            : Colors.grey[700],
                                         size: 22,
                                       ),
                                     ),
                                     SizedBox(width: 12),
                                     Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           option['title'],
                                           style: GoogleFonts.poppins(
-                                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                            color: isSelected ? option['color'] : Colors.grey[800],
+                                            fontWeight: isSelected
+                                                ? FontWeight.bold
+                                                : FontWeight.normal,
+                                            color: isSelected
+                                                ? option['color']
+                                                : Colors.grey[800],
                                             fontSize: 15,
                                           ),
                                         ),
@@ -260,7 +280,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                     },
                   ),
                 ),
-                
+
                 // Version/User info at bottom with animation
                 FadeInUp(
                   duration: Duration(milliseconds: 800),
@@ -268,7 +288,8 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                     padding: EdgeInsets.all(16),
                     child: Column(
                       children: [
-                        Divider(thickness: 1, color: Colors.grey.withOpacity(0.1)),
+                        Divider(
+                            thickness: 1, color: Colors.grey.withOpacity(0.1)),
                         SizedBox(height: 12),
                         Row(
                           children: [
@@ -285,7 +306,8 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                               ),
                               child: CircleAvatar(
                                 radius: 18,
-                                backgroundColor: Color(0xFF4E6AF3).withOpacity(0.1),
+                                backgroundColor:
+                                    Color(0xFF4E6AF3).withOpacity(0.1),
                                 child: Text(
                                   'N',
                                   style: GoogleFonts.poppins(
@@ -318,9 +340,15 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                             ),
                             Spacer(),
                             IconButton(
-                              icon: Icon(Icons.settings_rounded, color: Colors.grey[600], size: 22),
+                              icon: Icon(Icons.settings_rounded,
+                                  color: Colors.grey[600], size: 22),
                               onPressed: () {
-                                // Open settings
+                                setState(() {
+                                  _selectedIndex =
+                                      2; // Index of settings in the sidebar options
+                                  _animationController.reset();
+                                  _animationController.forward();
+                                });
                               },
                               tooltip: 'Settings',
                             ),
@@ -334,7 +362,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
             ),
           ),
         ),
-        
+
         // Right content area with animation
         Expanded(
           child: AnimatedSwitcher(
@@ -357,7 +385,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
       ],
     );
   }
-  
+
   Widget _buildMobileLayout() {
     return Column(
       children: [
@@ -395,7 +423,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
           backgroundColor: Colors.white,
           foregroundColor: Color(0xFF4E6AF3),
         ),
-        
+
         // Content area
         Expanded(
           child: _selectedIndex == -1
@@ -405,7 +433,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                   child: _buildRightPanel(),
                 ),
         ),
-        
+
         // Bottom navigation
         Container(
           decoration: BoxDecoration(
@@ -426,7 +454,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                 children: List.generate(_sidebarOptions.length, (index) {
                   final option = _sidebarOptions[index];
                   final isSelected = _selectedIndex == index;
-                  
+
                   return GestureDetector(
                     onTap: () {
                       setState(() {
@@ -437,7 +465,8 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                     },
                     child: AnimatedContainer(
                       duration: Duration(milliseconds: 300),
-                      padding: EdgeInsets.symmetric(vertical: 8, horizontal: 24),
+                      padding:
+                          EdgeInsets.symmetric(vertical: 8, horizontal: 24),
                       decoration: BoxDecoration(
                         color: isSelected
                             ? option['color'].withOpacity(0.1)
@@ -449,15 +478,20 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                         children: [
                           Icon(
                             option['icon'],
-                            color: isSelected ? option['color'] : Colors.grey[700],
+                            color:
+                                isSelected ? option['color'] : Colors.grey[700],
                             size: 26,
                           ),
                           SizedBox(height: 4),
                           Text(
                             option['title'],
                             style: GoogleFonts.poppins(
-                              color: isSelected ? option['color'] : Colors.grey[700],
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                              color: isSelected
+                                  ? option['color']
+                                  : Colors.grey[700],
+                              fontWeight: isSelected
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
                               fontSize: 12,
                             ),
                           ),
@@ -473,7 +507,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
       ],
     );
   }
-  
+
   Widget _buildMobileWelcomeScreen() {
     return FadeIn(
       duration: Duration(milliseconds: 600),
@@ -511,7 +545,8 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _featureItemMobile(Icons.wifi_off_rounded, 'No Internet Needed'),
+                _featureItemMobile(
+                    Icons.wifi_off_rounded, 'No Internet Needed'),
                 _featureItemMobile(Icons.speed_rounded, 'Fast Transfers'),
                 _featureItemMobile(Icons.security_rounded, 'Secure'),
               ],
@@ -534,7 +569,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
       ),
     );
   }
-  
+
   Widget _buildRightPanel() {
     // If no option is selected, show the welcome screen
     if (_selectedIndex == -1) {
@@ -608,7 +643,8 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        _featureItem(Icons.wifi_off_rounded, 'No Internet Needed'),
+                        _featureItem(
+                            Icons.wifi_off_rounded, 'No Internet Needed'),
                         SizedBox(width: 48),
                         _featureItem(Icons.speed_rounded, 'Fast Transfers'),
                         SizedBox(width: 48),
@@ -654,18 +690,21 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
         ),
       );
     }
-    
+
+    // Show the selected screen
     // Show the selected screen
     switch (_selectedIndex) {
       case 0:
         return FileSenderScreen();
       case 1:
         return ReceiveScreen();
+      case 2:
+        return SettingsScreen();
       default:
         return Container(); // Fallback, should never happen
     }
   }
-  
+
   Widget _featureItem(IconData icon, String text) {
     return Column(
       children: [
@@ -673,7 +712,10 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
           padding: EdgeInsets.all(16),
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: [Color(0xFF4E6AF3).withOpacity(0.1), Color(0xFF2AB673).withOpacity(0.1)],
+              colors: [
+                Color(0xFF4E6AF3).withOpacity(0.1),
+                Color(0xFF2AB673).withOpacity(0.1)
+              ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -697,7 +739,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
       ],
     );
   }
-  
+
   Widget _featureItemMobile(IconData icon, String text) {
     return Column(
       children: [
@@ -705,7 +747,10 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
           padding: EdgeInsets.all(12),
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: [Color(0xFF4E6AF3).withOpacity(0.1), Color(0xFF2AB673).withOpacity(0.1)],
+              colors: [
+                Color(0xFF4E6AF3).withOpacity(0.1),
+                Color(0xFF2AB673).withOpacity(0.1)
+              ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -729,8 +774,9 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
       ],
     );
   }
-  
-  Widget _actionButton(String text, IconData icon, Color color, VoidCallback onTap) {
+
+  Widget _actionButton(
+      String text, IconData icon, Color color, VoidCallback onTap) {
     return Material(
       color: Colors.transparent,
       child: InkWell(

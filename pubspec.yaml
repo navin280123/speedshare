@@ -58,6 +58,9 @@ dev_dependencies:
   google_fonts: ^6.2.1
   lottie: ^3.3.1
   animate_do: ^4.2.0
+  shared_preferences: ^2.5.3
+  flutter_spinkit: ^5.2.1
+  window_size: ^0.1.0
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
