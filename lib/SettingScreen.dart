@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:animate_do/animate_do.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:animate_do/animate_do.dart';
 import 'dart:io';
 
 class SettingsScreen extends StatefulWidget {
@@ -26,6 +25,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String deviceName = '';
   bool loading = true;
   bool saveHistory = true;
+  
+  // Current date/time for display
+  final String currentDateTime = '2025-05-16 16:41:48';
 
   @override
   void initState() {
@@ -83,10 +85,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: [
               Icon(Icons.check_circle_rounded, color: Colors.white),
               SizedBox(width: 10),
-              Text(
-                'Settings saved successfully',
-                style: GoogleFonts.poppins(),
-              ),
+              Text('Settings saved successfully'),
             ],
           ),
           backgroundColor: Color(0xFF2AB673),
@@ -103,10 +102,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: [
               Icon(Icons.error_rounded, color: Colors.white),
               SizedBox(width: 10),
-              Text(
-                'Error saving settings',
-                style: GoogleFonts.poppins(),
-              ),
+              Text('Error saving settings'),
             ],
           ),
           backgroundColor: Colors.red,
@@ -138,20 +134,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (context) => AlertDialog(
         title: Text(
           'Reset Settings',
-          style: GoogleFonts.poppins(
+          style: TextStyle(
             fontWeight: FontWeight.bold,
           ),
         ),
         content: Text(
           'This will reset all settings to default values. Are you sure you want to continue?',
-          style: GoogleFonts.poppins(),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
             child: Text(
               'Cancel',
-              style: GoogleFonts.poppins(
+              style: TextStyle(
                 color: Colors.grey[700],
               ),
             ),
@@ -169,10 +164,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     children: [
                       Icon(Icons.refresh_rounded, color: Colors.white),
                       SizedBox(width: 10),
-                      Text(
-                        'Settings reset to defaults',
-                        style: GoogleFonts.poppins(),
-                      ),
+                      Text('Settings reset to defaults'),
                     ],
                   ),
                   backgroundColor: Color(0xFF4E6AF3),
@@ -188,7 +180,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             child: Text(
               'Reset',
-              style: GoogleFonts.poppins(
+              style: TextStyle(
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -201,426 +193,126 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Get screen size for responsive design
-    final Size screenSize = MediaQuery.of(context).size;
-    final bool isSmallScreen = screenSize.width < 1000;
-    
     return Scaffold(
-      body: FadeIn(
-        duration: Duration(milliseconds: 500),
-        child: Container(
-          color: Colors.grey[50],
-          padding: EdgeInsets.all(isSmallScreen ? 12 : 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header section
-              FadeInDown(
-                duration: Duration(milliseconds: 500),
-                child: Row(
+      body: Container(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header with title
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4E6AF3).withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.settings_rounded,
+                    size: 24,
+                    color: Color(0xFF4E6AF3),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Color(0xFF4E6AF3).withOpacity(0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.settings_rounded,
-                        size: 24,
+                    const Text(
+                      'Settings',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
                         color: Color(0xFF4E6AF3),
                       ),
                     ),
-                    SizedBox(width: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Settings',
-                          style: GoogleFonts.poppins(
-                            fontSize: isSmallScreen ? 20 : 24,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF4E6AF3),
-                          ),
-                        ),
-                        Text(
-                          'Configure your SpeedShare preferences',
-                          style: GoogleFonts.poppins(
-                            color: Colors.grey[600],
-                            fontSize: isSmallScreen ? 12 : 14,
-                          ),
-                        ),
-                      ],
+                    Text(
+                      'Configure your preferences',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Theme.of(context).brightness == Brightness.dark 
+                            ? Colors.grey[400] 
+                            : Colors.grey[600],
+                      ),
                     ),
                   ],
                 ),
-              ),
-              SizedBox(height: 24),
-              
-              // Main content
-              Expanded(
-                child: loading 
-                    ? Center(
-                        child: CircularProgressIndicator(
-                          color: Color(0xFF4E6AF3),
-                        ),
-                      )
-                    : isSmallScreen
-                        ? _buildMobileLayout()
-                        : _buildDesktopLayout(),
-              ),
-              
-              // Save button at bottom
-              SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: _saveSettings,
-                      icon: Icon(Icons.save_rounded),
-                      label: Text(
-                        'Save Settings',
-                        style: GoogleFonts.poppins(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        backgroundColor: Color(0xFF2AB673),
-                        padding: EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        elevation: 2,
-                        shadowColor: Color(0xFF2AB673).withOpacity(0.3),
-                      ),
+               
+              ],
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Main content
+            Expanded(
+              child: loading
+                  ? const Center(
+                      child: CircularProgressIndicator(),
+                    )
+                  : _buildSettingsContent(),
+            ),
+            
+            // Bottom save/reset buttons
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _saveSettings,
+                    icon: const Icon(Icons.save_rounded),
+                    label: const Text('Save Settings'),
+                    style: ElevatedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      backgroundColor: const Color(0xFF2AB673),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                   ),
-                  SizedBox(width: 16),
-                  OutlinedButton.icon(
-                    onPressed: _resetSettings,
-                    icon: Icon(Icons.refresh_rounded),
-                    label: Text(
-                      'Reset',
-                      style: GoogleFonts.poppins(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.red,
-                      side: BorderSide(color: Colors.red, width: 1.5),
-                      padding: EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
+                ),
+                const SizedBox(width: 12),
+                OutlinedButton.icon(
+                  onPressed: _resetSettings,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Reset'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    side: const BorderSide(color: Colors.red),
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                   ),
-                ],
-              ),
-            ],
-          ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
   }
   
-  Widget _buildMobileLayout() {
+  Widget _buildSettingsContent() {
     return SingleChildScrollView(
       child: Column(
-        children: [
-          // Account info section
-          _buildAccountSection(),
-          SizedBox(height: 16),
-          
-          // General settings
-          _buildGeneralSettings(),
-          SizedBox(height: 16),
-          
-          // Network settings
-          _buildNetworkSettings(),
-          SizedBox(height: 16),
-          
-          // File settings
-          _buildFileSettings(),
-          SizedBox(height: 16),
-          
-          // Appearance settings
-          _buildAppearanceSettings(),
-        ],
-      ),
-    );
-  }
-  
-  Widget _buildDesktopLayout() {
-    return SingleChildScrollView(
-      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Left side
-          Expanded(
-            child: Column(
-              children: [
-                _buildAccountSection(),
-                SizedBox(height: 20),
-                _buildGeneralSettings(),
-                SizedBox(height: 20),
-                _buildNetworkSettings(),
-              ],
-            ),
-          ),
+          // Account section
+          _buildAccountSection(),
+          const SizedBox(height: 16),
           
-          SizedBox(width: 20),
-          
-          // Right side
-          Expanded(
-            child: Column(
-              children: [
-                _buildFileSettings(),
-                SizedBox(height: 20),
-                _buildAppearanceSettings(),
-                SizedBox(height: 20),
-                _buildAboutSection(),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-  
-  Widget _buildAccountSection() {
-    return FadeInUp(
-      duration: Duration(milliseconds: 600),
-      child: Card(
-        elevation: 2,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Padding(
-          padding: EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          // General settings
+          _buildSettingsCard(
+            title: 'General Settings',
+            icon: Icons.tune_rounded,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Color(0xFF4E6AF3).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      Icons.person_rounded,
-                      color: Color(0xFF4E6AF3),
-                      size: 24,
-                    ),
-                  ),
-                  SizedBox(width: 16),
-                  Text(
-                    'Account Information',
-                    style: GoogleFonts.poppins(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF4E6AF3),
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 24),
-              
-              // User info
-              Container(
-                padding: EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Color(0xFF4E6AF3).withOpacity(0.1),
-                      Color(0xFF2AB673).withOpacity(0.1),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: Color(0xFF4E6AF3).withOpacity(0.2),
-                    width: 1,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Color(0xFF4E6AF3).withOpacity(0.2),
-                            blurRadius: 8,
-                            offset: Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: CircleAvatar(
-                        radius: 30,
-                        backgroundColor: Color(0xFF4E6AF3).withOpacity(0.1),
-                        child: Text(
-                          username.substring(0, 1).toUpperCase(),
-                          style: GoogleFonts.poppins(
-                            color: Color(0xFF4E6AF3),
-                            fontWeight: FontWeight.bold,
-                            fontSize: 24,
-                          ),
-                        ),
-                      ),
-                    ),
-                    SizedBox(width: 20),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            username,
-                            style: GoogleFonts.poppins(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
-                              color: Color(0xFF4E6AF3),
-                            ),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            'Valid until: ${expiryDate.year}-${expiryDate.month.toString().padLeft(2, '0')}-${expiryDate.day.toString().padLeft(2, '0')}',
-                            style: GoogleFonts.poppins(
-                              fontSize: 14,
-                              color: Colors.grey[700],
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          Container(
-                            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: Color(0xFF2AB673),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              'Active',
-                              style: GoogleFonts.poppins(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              
-              SizedBox(height: 16),
-              
-              // Device name
-              TextField(
-                decoration: InputDecoration(
-                  labelText: 'Device Name',
-                  labelStyle: GoogleFonts.poppins(
-                    color: Colors.grey[700],
-                  ),
-                  hintText: 'Enter a name for this device',
-                  hintStyle: GoogleFonts.poppins(
-                    color: Colors.grey[400],
-                  ),
-                  prefixIcon: Icon(Icons.computer_rounded, color: Color(0xFF4E6AF3)),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey[300]!),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey[300]!),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Color(0xFF4E6AF3), width: 2),
-                  ),
-                  filled: true,
-                  fillColor: Colors.white,
-                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                ),
-                style: GoogleFonts.poppins(
-                  fontSize: 15,
-                ),
-                controller: TextEditingController(text: deviceName),
-                onChanged: (value) {
-                  deviceName = value;
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-  
-  Widget _buildGeneralSettings() {
-    return FadeInUp(
-      duration: Duration(milliseconds: 700),
-      child: Card(
-        elevation: 2,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Padding(
-          padding: EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Color(0xFF4E6AF3).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      Icons.tune_rounded,
-                      color: Color(0xFF4E6AF3),
-                      size: 24,
-                    ),
-                  ),
-                  SizedBox(width: 16),
-                  Text(
-                    'General Settings',
-                    style: GoogleFonts.poppins(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF4E6AF3),
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 24),
-              
-              // Auto start
-              _buildSwitchOption(
+              _buildSwitchSetting(
                 title: 'Auto-start with system',
-                subtitle: 'SpeedShare will start when your computer starts',
+                subtitle: 'SpeedShare will start when your system boots',
                 value: autoStart,
                 onChanged: (value) {
                   setState(() {
                     autoStart = value;
                   });
                 },
-                icon: Icons.play_circle_rounded,
+                icon: Icons.play_circle_outline_rounded,
               ),
-              
-              SizedBox(height: 12),
-              Divider(),
-              SizedBox(height: 12),
-              
-              // Minimize to tray
-              _buildSwitchOption(
+              const Divider(),
+              _buildSwitchSetting(
                 title: 'Minimize to system tray',
                 subtitle: 'Keep SpeedShare running in the background',
                 value: minimizeToTray,
@@ -629,15 +321,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     minimizeToTray = value;
                   });
                 },
-                icon: Icons.arrow_downward_rounded,
+                icon: Icons.minimize_rounded,
               ),
-              
-              SizedBox(height: 12),
-              Divider(),
-              SizedBox(height: 12),
-              
-              // Show notifications
-              _buildSwitchOption(
+              const Divider(),
+              _buildSwitchSetting(
                 title: 'Show notifications',
                 subtitle: 'Display notifications for file transfers',
                 value: showNotifications,
@@ -650,241 +337,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-  
-  Widget _buildNetworkSettings() {
-    return FadeInUp(
-      duration: Duration(milliseconds: 800),
-      child: Card(
-        elevation: 2,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Padding(
-          padding: EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          const SizedBox(height: 16),
+          
+          // Network settings
+          _buildSettingsCard(
+            title: 'Network Settings',
+            icon: Icons.wifi_rounded,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Color(0xFF4E6AF3).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      Icons.wifi_rounded,
-                      color: Color(0xFF4E6AF3),
-                      size: 24,
-                    ),
-                  ),
-                  SizedBox(width: 16),
-                  Text(
-                    'Network Settings',
-                    style: GoogleFonts.poppins(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF4E6AF3),
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 24),
-              
-              // Port setting
-              Text(
-                'Port',
-                style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: Colors.grey[800],
-                ),
-              ),
-              SizedBox(height: 8),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.router_rounded, color: Colors.grey[600], size: 22),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Set the port number for receiving files',
-                          style: GoogleFonts.poppins(
-                            color: Colors.grey[600],
-                            fontSize: 14,
-                          ),
-                        ),
-                        SizedBox(height: 12),
-                        Container(
-                          width: 200,
-                          child: TextField(
-                            decoration: InputDecoration(
-                              hintText: '8080',
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                            ),
-                            keyboardType: TextInputType.number,
-                            controller: TextEditingController(text: port.toString()),
-                            onChanged: (value) {
-                              try {
-                                port = int.parse(value);
-                              } catch (e) {
-                                // Invalid input, keep the old value
-                              }
-                            },
-                            style: GoogleFonts.poppins(),
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          'Note: Changing this requires a restart of the application',
-                          style: GoogleFonts.poppins(
-                            color: Colors.orange[700],
-                            fontSize: 12,
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+              _buildPortSetting(),
             ],
           ),
-        ),
-      ),
-    );
-  }
-  
-  Widget _buildFileSettings() {
-    return FadeInUp(
-      duration: Duration(milliseconds: 800),
-      child: Card(
-        elevation: 2,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Padding(
-          padding: EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          const SizedBox(height: 16),
+          
+          // File settings
+          _buildSettingsCard(
+            title: 'File Settings',
+            icon: Icons.folder_rounded,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Color(0xFF4E6AF3).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      Icons.folder_rounded,
-                      color: Color(0xFF4E6AF3),
-                      size: 24,
-                    ),
-                  ),
-                  SizedBox(width: 16),
-                  Text(
-                    'File Settings',
-                    style: GoogleFonts.poppins(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF4E6AF3),
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 24),
-              
-              // Download location
-              Text(
-                'Download Location',
-                style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: Colors.grey[800],
-                ),
-              ),
-              SizedBox(height: 8),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.download_rounded, color: Colors.grey[600], size: 22),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Set where received files are saved',
-                          style: GoogleFonts.poppins(
-                            color: Colors.grey[600],
-                            fontSize: 14,
-                          ),
-                        ),
-                        SizedBox(height: 12),
-                        Container(
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey[300]!),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Padding(
-                                  padding: EdgeInsets.all(12),
-                                  child: Text(
-                                    downloadPath,
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 14,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ),
-                              ElevatedButton(
-                                onPressed: _selectDownloadFolder,
-                                style: ElevatedButton.styleFrom(
-                                  foregroundColor: Color(0xFF4E6AF3),
-                                  backgroundColor: Color(0xFF4E6AF3).withOpacity(0.1),
-                                  elevation: 0,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  padding: EdgeInsets.symmetric(horizontal: 16),
-                                ),
-                                child: Text(
-                                  'Browse',
-                                  style: GoogleFonts.poppins(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              
-              SizedBox(height: 16),
-              Divider(),
-              SizedBox(height: 16),
-              
-              // Keep transfer history
-              _buildSwitchOption(
+              _buildDownloadPathSetting(),
+              const Divider(),
+              _buildSwitchSetting(
                 title: 'Save transfer history',
                 subtitle: 'Keep a record of sent and received files',
                 value: saveHistory,
@@ -897,53 +369,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-  
-  Widget _buildAppearanceSettings() {
-    return FadeInUp(
-      duration: Duration(milliseconds: 900),
-      child: Card(
-        elevation: 2,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Padding(
-          padding: EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          const SizedBox(height: 16),
+          
+          // Appearance settings
+          _buildSettingsCard(
+            title: 'Appearance',
+            icon: Icons.palette_rounded,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Color(0xFF4E6AF3).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      Icons.palette_rounded,
-                      color: Color(0xFF4E6AF3),
-                      size: 24,
-                    ),
-                  ),
-                  SizedBox(width: 16),
-                  Text(
-                    'Appearance',
-                    style: GoogleFonts.poppins(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF4E6AF3),
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 24),
-              
-              // Dark Mode
-              _buildSwitchOption(
+              _buildSwitchSetting(
                 title: 'Dark mode',
                 subtitle: 'Use dark theme throughout the app',
                 value: darkMode,
@@ -954,250 +387,519 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 },
                 icon: Icons.dark_mode_rounded,
               ),
-              
-              SizedBox(height: 16),
-              Divider(),
-              SizedBox(height: 16),
-              
-              // Theme selection
-              Text(
-                'Theme Colors',
-                style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: Colors.grey[800],
-                ),
-              ),
-              SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _buildColorOption(Color(0xFF4E6AF3), isSelected: true),
-                  _buildColorOption(Color(0xFF8B54D3)),
-                  _buildColorOption(Color(0xFF2AB673)),
-                  _buildColorOption(Color(0xFFE74C3C)),
-                  _buildColorOption(Color(0xFF3498DB)),
-                ],
-              ),
             ],
           ),
-        ),
+          const SizedBox(height: 16),
+          
+          // About section
+          _buildAboutSection(),
+        ],
       ),
     );
   }
   
-  Widget _buildAboutSection() {
-    return FadeInUp(
-      duration: Duration(milliseconds: 900),
-      child: Card(
-        elevation: 2,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Padding(
-          padding: EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+  Widget _buildAccountSection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4E6AF3).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.person_rounded,
+                    size: 18,
+                    color: Color(0xFF4E6AF3),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  'Account',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            
+            // User info card
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.grey[850]
+                    : Colors.grey[100],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: const Color(0xFF4E6AF3).withOpacity(0.2),
+                ),
+              ),
+              child: Row(
                 children: [
                   Container(
-                    padding: EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Color(0xFF4E6AF3).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      Icons.info_rounded,
+                    width: 48,
+                    height: 48,
+                    decoration: const BoxDecoration(
                       color: Color(0xFF4E6AF3),
-                      size: 24,
+                      shape: BoxShape.circle,
                     ),
-                  ),
-                  SizedBox(width: 16),
-                  Text(
-                    'About',
-                    style: GoogleFonts.poppins(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF4E6AF3),
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 24),
-              
-              // App info
-              Center(
-                child: Column(
-                  children: [
-                    Container(
-                      padding: EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [Color(0xFF4E6AF3), Color(0xFF2AB673)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
+                    child: Center(
+                      child: Text(
+                        deviceName.isNotEmpty ? deviceName.substring(0, 1).toUpperCase() : 'D',
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
                         ),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Color(0xFF4E6AF3).withOpacity(0.3),
-                            blurRadius: 15,
-                            offset: Offset(0, 5),
-                          ),
-                        ],
-                      ),
-                      child: Icon(
-                        Icons.swap_horiz_rounded,
-                        size: 48,
-                        color: Colors.white,
                       ),
                     ),
-                    SizedBox(height: 16),
-                    Text(
-                      'SpeedShare',
-                      style: GoogleFonts.poppins(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        foreground: Paint()
-                          ..shader = LinearGradient(
-                            colors: [Color(0xFF4E6AF3), Color(0xFF2AB673)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ).createShader(Rect.fromLTWH(0, 0, 200, 70)),
-                      ),
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      'Version 1.0.0',
-                      style: GoogleFonts.poppins(
-                        color: Colors.grey[600],
-                        fontSize: 14,
-                      ),
-                    ),
-                    SizedBox(height: 24),
-                    Text(
-                      '© 2025 navin280123. All rights reserved.',
-                      style: GoogleFonts.poppins(
-                        color: Colors.grey[600],
-                        fontSize: 12,
-                      ),
-                    ),
-                    SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        TextButton(
-                          onPressed: () {
-                            // Open Privacy Policy
-                          },
-                          child: Text(
-                            'Privacy Policy',
-                            style: GoogleFonts.poppins(
-                              color: Color(0xFF4E6AF3),
-                              fontSize: 12,
-                            ),
+                        Text(
+                          deviceName,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                        Text('•', style: TextStyle(color: Colors.grey)),
-                        TextButton(
-                          onPressed: () {
-                            // Open Terms of Service
-                          },
-                          child: Text(
-                            'Terms of Service',
-                            style: GoogleFonts.poppins(
-                              color: Color(0xFF4E6AF3),
-                              fontSize: 12,
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF2AB673),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Text(
+                                'Active',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
                             ),
-                          ),
+                          ],
                         ),
                       ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Device name display (non-editable)
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey.withOpacity(0.5)),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.computer_rounded,
+                    size: 20,
+                    color: Colors.grey,
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Device Name',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
+                      ),
+                      Text(
+                        deviceName,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
   
-  Widget _buildSwitchOption({
+  Widget _buildSettingsCard({
+    required String title,
+    required IconData icon,
+    required List<Widget> children,
+  }) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4E6AF3).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 18,
+                    color: const Color(0xFF4E6AF3),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            ...children,
+          ],
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildSwitchSetting({
     required String title,
     required String subtitle,
     required bool value,
     required Function(bool) onChanged,
     required IconData icon,
   }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, color: Colors.grey[600], size: 22),
-        SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: Colors.grey[800],
-                ),
-              ),
-              SizedBox(height: 4),
-              Text(
-                subtitle,
-                style: GoogleFonts.poppins(
-                  color: Colors.grey[600],
-                  fontSize: 14,
-                ),
-              ),
-            ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.grey[800]
+                  : Colors.grey[200],
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              icon,
+              size: 16,
+              color: value ? const Color(0xFF4E6AF3) : Colors.grey,
+            ),
           ),
-        ),
-        Switch(
-          value: value,
-          onChanged: onChanged,
-          activeColor: Color(0xFF2AB673),
-          activeTrackColor: Color(0xFF2AB673).withOpacity(0.3),
-        ),
-      ],
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.grey[400]
+                        : Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: value,
+            onChanged: onChanged,
+            activeColor: const Color(0xFF2AB673),
+          ),
+        ],
+      ),
     );
   }
   
-  Widget _buildColorOption(Color color, {bool isSelected = false}) {
-    return InkWell(
-      onTap: () {
-        // Handle color selection
-      },
-      borderRadius: BorderRadius.circular(30),
-      child: Container(
-        width: 50,
-        height: 50,
-        decoration: BoxDecoration(
-          color: color,
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: color.withOpacity(0.3),
-              blurRadius: 8,
-              offset: Offset(0, 3),
+  Widget _buildPortSetting() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.grey[800]
+                  : Colors.grey[200],
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(
+              Icons.router_rounded,
+              size: 16,
+              color: Color(0xFF4E6AF3),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Port',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Text(
+                  'Set the port number for receiving files',
+                  style: TextStyle(
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: 120,
+                  child: TextField(
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                    ),
+                    keyboardType: TextInputType.number,
+                    controller: TextEditingController(text: port.toString()),
+                    onChanged: (value) {
+                      try {
+                        port = int.parse(value);
+                      } catch (_) {}
+                    },
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Requires app restart',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontStyle: FontStyle.italic,
+                    color: Colors.orange,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildDownloadPathSetting() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.grey[800]
+                  : Colors.grey[200],
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(
+              Icons.download_rounded,
+              size: 16,
+              color: Color(0xFF4E6AF3),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Download Location',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Text(
+                  'Set where received files are saved',
+                  style: TextStyle(
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: Colors.grey.withOpacity(0.5),
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          downloadPath,
+                          style: const TextStyle(fontSize: 12),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: _selectDownloadFolder,
+                        child: const Text('Browse'),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildAboutSection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4E6AF3).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.info_outline_rounded,
+                    size: 18,
+                    color: Color(0xFF4E6AF3),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  'About',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            
+            // App logo and info
+            Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF4E6AF3), Color(0xFF2AB673)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.swap_horiz_rounded,
+                    size: 32,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'SpeedShare',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF4E6AF3),
+                  ),
+                ),
+                Text(
+                  'Version 1.0.0',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.grey[400]
+                        : Colors.grey[600],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  '© 2025 ${username}. All rights reserved.',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.grey[500]
+                        : Colors.grey[600],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    TextButton(
+                      onPressed: () {},
+                      child: const Text(
+                        'Privacy Policy',
+                        style: TextStyle(fontSize: 11),
+                      ),
+                    ),
+                    Text('•', style: TextStyle(color: Colors.grey)),
+                    TextButton(
+                      onPressed: () {},
+                      child: const Text(
+                        'Terms of Service',
+                        style: TextStyle(fontSize: 11),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ],
-          border: isSelected
-              ? Border.all(color: Colors.white, width: 3)
-              : null,
         ),
-        child: isSelected
-            ? Icon(
-                Icons.check,
-                color: Colors.white,
-              )
-            : null,
       ),
     );
   }

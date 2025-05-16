@@ -7,7 +7,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:intl/intl.dart';
 import 'package:open_file/open_file.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:lottie/lottie.dart';
 
@@ -35,6 +34,10 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
   // Animation controller
   late AnimationController _animationController;
   late Animation<double> _pulseAnimation;
+  
+  // Fixed date/time and user login
+  final String currentDateTime = '2025-05-16 16:52:52';
+  final String userLogin = 'navin280123';
 
   @override
   void initState() {
@@ -188,10 +191,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
             children: [
               Icon(Icons.check_circle_rounded, color: Colors.white),
               SizedBox(width: 10),
-              Text(
-                'Ready to receive files',
-                style: GoogleFonts.poppins(),
-              ),
+              Text('Ready to receive files'),
             ],
           ),
           backgroundColor: Color(0xFF2AB673),
@@ -322,10 +322,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
                     children: [
                       Icon(Icons.check_circle_rounded, color: Colors.white),
                       SizedBox(width: 10),
-                      Text(
-                        'File received: $receivedFileName',
-                        style: GoogleFonts.poppins(),
-                      ),
+                      Text('File received: $receivedFileName'),
                     ],
                   ),
                   backgroundColor: Color(0xFF2AB673),
@@ -368,10 +365,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
             children: [
               Icon(Icons.error_rounded, color: Colors.white),
               SizedBox(width: 10),
-              Text(
-                'Error: $e',
-                style: GoogleFonts.poppins(),
-              ),
+              Text('Error: $e'),
             ],
           ),
           backgroundColor: Colors.red,
@@ -408,10 +402,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
           children: [
             Icon(Icons.info_rounded, color: Colors.white),
             SizedBox(width: 10),
-            Text(
-              'Stopped receiving files',
-              style: GoogleFonts.poppins(),
-            ),
+            Text('Stopped receiving files'),
           ],
         ),
         backgroundColor: Colors.orange,
@@ -433,10 +424,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
               children: [
                 Icon(Icons.error_rounded, color: Colors.white),
                 SizedBox(width: 10),
-                Text(
-                  'Could not open file: ${result.message}',
-                  style: GoogleFonts.poppins(),
-                ),
+                Text('Could not open file: ${result.message}'),
               ],
             ),
             backgroundColor: Colors.red,
@@ -452,10 +440,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
             children: [
               Icon(Icons.error_rounded, color: Colors.white),
               SizedBox(width: 10),
-              Text(
-                'Error opening file: $e',
-                style: GoogleFonts.poppins(),
-              ),
+              Text('Error opening file: $e'),
             ],
           ),
           backgroundColor: Colors.red,
@@ -484,10 +469,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
               children: [
                 Icon(Icons.info_rounded, color: Colors.white),
                 SizedBox(width: 10),
-                Text(
-                  'Path copied to clipboard: $downloadDirectoryPath',
-                  style: GoogleFonts.poppins(),
-                ),
+                Text('Path copied to clipboard'),
               ],
             ),
             backgroundColor: Color(0xFF4E6AF3),
@@ -503,10 +485,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
             children: [
               Icon(Icons.error_rounded, color: Colors.white),
               SizedBox(width: 10),
-              Text(
-                'Could not open folder: $e',
-                style: GoogleFonts.poppins(),
-              ),
+              Text('Could not open folder: $e'),
             ],
           ),
           backgroundColor: Colors.red,
@@ -526,10 +505,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
           children: [
             Icon(Icons.check_circle_rounded, color: Colors.white),
             SizedBox(width: 10),
-            Text(
-              'IP address copied to clipboard',
-              style: GoogleFonts.poppins(),
-            ),
+            Text('IP address copied to clipboard'),
           ],
         ),
         backgroundColor: Color(0xFF4E6AF3),
@@ -566,1168 +542,611 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
 
   @override
   Widget build(BuildContext context) {
-    // Get screen size for responsive design
-    final Size screenSize = MediaQuery.of(context).size;
-    final bool isSmallScreen = screenSize.width < 1000;
-    
     return Scaffold(
-      body: FadeIn(
-        duration: Duration(milliseconds: 500),
-        child: Container(
-          color: Colors.grey[50],
-          padding: EdgeInsets.all(isSmallScreen ? 12 : 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header section
-              FadeInDown(
-                duration: Duration(milliseconds: 500),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Color(0xFF2AB673).withOpacity(0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.download_rounded,
-                        size: 24,
-                        color: Color(0xFF2AB673),
-                      ),
-                    ),
-                    SizedBox(width: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Receive Files',
-                          style: GoogleFonts.poppins(
-                            fontSize: isSmallScreen ? 20 : 24,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF2AB673),
-                          ),
-                        ),
-                        Text(
-                          'Start receiving to allow others to send you files',
-                          style: GoogleFonts.poppins(
-                            color: Colors.grey[600],
-                            fontSize: isSmallScreen ? 12 : 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+      body: Container(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header with title
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2AB673).withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.download_rounded,
+                    size: 22,
+                    color: Color(0xFF2AB673),
+                  ),
                 ),
-              ),
-              SizedBox(height: 24),
-              
-              // Main content
-              Expanded(
-                child: isSmallScreen
-                    ? _buildMobileLayout()
-                    : _buildDesktopLayout(),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-  
-  Widget _buildMobileLayout() {
-    return Column(
-      children: [
-        // Device info and status
-        FadeInLeft(
-          duration: Duration(milliseconds: 600),
-          child: Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        padding: EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Color(0xFF2AB673).withOpacity(0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.info_rounded,
-                          color: Color(0xFF2AB673),
-                          size: 20,
-                        ),
-                      ),
-                      SizedBox(width: 12),
-                      Text(
-                        'Device Information',
-                        style: GoogleFonts.poppins(
-                          fontSize: 16,
+                      const Text(
+                        'Receive Files',
+                        style: TextStyle(
+                          fontSize: 18,
                           fontWeight: FontWeight.bold,
                           color: Color(0xFF2AB673),
                         ),
                       ),
-                    ],
-                  ),
-                  SizedBox(height: 16),
-                  
-                  // Device info items
-                  _buildInfoItem(
-                    Icons.computer_rounded, 
-                    'Device Name', 
-                    computerName,
-                    null,
-                  ),
-                  
-                  SizedBox(height: 12),
-                  
-                  _buildInfoItem(
-                    Icons.wifi_rounded, 
-                    'IP Address', 
-                    isLoadingIp ? 'Loading...' : ipAddress,
-                    isLoadingIp ? null : _copyIpToClipboard,
-                  ),
-                  
-                  SizedBox(height: 12),
-                  
-                  _buildInfoItem(
-                    Icons.router_rounded, 
-                    'Port', 
-                    '8080',
-                    null,
-                  ),
-                  
-                  SizedBox(height: 12),
-                  
-                  // Status
-                  Row(
-                    children: [
-                      Container(
-                        padding: EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: (isReceiving ? Color(0xFF2AB673) : Colors.grey).withOpacity(0.1),
-                          shape: BoxShape.circle,
+                      Text(
+                        'Start receiving ',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(context).brightness == Brightness.dark 
+                              ? Colors.grey[400] 
+                              : Colors.grey[600],
                         ),
-                        child: isReceivingAnimation && isReceiving
-                            ? ScaleTransition(
-                                scale: _pulseAnimation,
-                                child: Container(
-                                  width: 14,
-                                  height: 14,
-                                  decoration: BoxDecoration(
-                                    color: Color(0xFF2AB673),
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                              )
-                            : Icon(
-                                isReceiving ? Icons.podcasts_rounded : Icons.pause_circle_filled_rounded,
-                                color: isReceiving ? Color(0xFF2AB673) : Colors.grey,
-                                size: 20,
-                              ),
-                      ),
-                      SizedBox(width: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Status',
-                            style: GoogleFonts.poppins(
-                              color: Colors.grey[600],
-                              fontSize: 12,
-                            ),
-                          ),
-                          Text(
-                            isReceiving ? 'Listening for files' : 'Not receiving',
-                            style: GoogleFonts.poppins(
-                              fontWeight: FontWeight.bold,
-                              color: isReceiving ? Color(0xFF2AB673) : Colors.grey[700],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  
-                  SizedBox(height: 16),
-                  
-                  // Controls
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: isReceiving ? null : startReceiving,
-                          icon: Icon(Icons.play_arrow_rounded),
-                          label: Text('Start'),
-                          style: ElevatedButton.styleFrom(
-                            foregroundColor: Colors.white,
-                            backgroundColor: Color(0xFF2AB673),
-                            disabledBackgroundColor: Colors.grey[300],
-                            padding: EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            elevation: 0,
-                            textStyle: GoogleFonts.poppins(
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: isReceiving ? stopReceiving : null,
-                          icon: Icon(Icons.stop_rounded),
-                          label: Text('Stop'),
-                          style: ElevatedButton.styleFrom(
-                            foregroundColor: Colors.white,
-                            backgroundColor: Colors.red[400],
-                            disabledBackgroundColor: Colors.grey[300],
-                            padding: EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            elevation: 0,
-                            textStyle: GoogleFonts.poppins(
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        
-        // Current transfer
-        if (receivedFileName.isNotEmpty)
-          FadeInUp(
-            duration: Duration(milliseconds: 600),
-            child: Container(
-              margin: EdgeInsets.only(top: 16),
-              child: Card(
-                elevation: 2,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Color(0xFF4E6AF3).withOpacity(0.1),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              Icons.downloading_rounded,
-                              color: Color(0xFF4E6AF3),
-                              size: 20,
-                            ),
-                          ),
-                          SizedBox(width: 12),
-                          Text(
-                            'Current Transfer',
-                            style: GoogleFonts.poppins(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF4E6AF3),
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 16),
-                      
-                      Row(
-                        children: [
-                          _getFileIcon(receivedFileName, 36),
-                          SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  receivedFileName,
-                                  style: GoogleFonts.poppins(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                SizedBox(height: 4),
-                                Text(
-                                  '${_formatFileSize(bytesReceived)} of ${_formatFileSize(fileSize)}',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 12,
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      
-                      SizedBox(height: 16),
-                      
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: LinearProgressIndicator(
-                          value: progress,
-                          backgroundColor: Colors.grey[200],
-                          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4E6AF3)),
-                          minHeight: 8,
-                        ),
-                      ),
-                      
-                      SizedBox(height: 8),
-                      
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            '${(progress * 100).toStringAsFixed(1)}%',
-                            style: GoogleFonts.poppins(
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF4E6AF3),
-                            ),
-                          ),
-                          Row(
-                            children: [
-                              SizedBox(
-                                width: 12,
-                                height: 12,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4E6AF3)),
-                                ),
-                              ),
-                              SizedBox(width: 6),
-                              Text(
-                                'Receiving...',
-                                style: GoogleFonts.poppins(
-                                  fontStyle: FontStyle.italic,
-                                  color: Color(0xFF4E6AF3),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
                 ),
-              ),
+                // User info
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).cardColor,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 4,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ),
-          
-        SizedBox(height: 16),
-          
-        // Received files
-        Expanded(
-          child: FadeInRight(
-            duration: Duration(milliseconds: 600),
-            child: Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Padding(
-                padding: EdgeInsets.all(16),
+            
+            const SizedBox(height: 12),
+            
+            // Main content - now vertical
+            Expanded(
+              child: SingleChildScrollView(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Color(0xFF4E6AF3).withOpacity(0.1),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                Icons.folder_rounded,
-                                color: Color(0xFF4E6AF3),
-                                size: 20,
-                              ),
-                            ),
-                            SizedBox(width: 12),
-                            Text(
-                              'Received Files',
-                              style: GoogleFonts.poppins(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF4E6AF3),
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (receivedFiles.isNotEmpty)
-                          IconButton(
-                            icon: Icon(Icons.folder_open_rounded, color: Color(0xFF4E6AF3)),
-                            onPressed: _openDownloadsFolder,
-                            tooltip: 'Open Downloads Folder',
-                            style: IconButton.styleFrom(
-                              backgroundColor: Color(0xFF4E6AF3).withOpacity(0.1),
-                              padding: EdgeInsets.all(8),
-                            ),
-                          ),
-                      ],
-                    ),
-                    SizedBox(height: 12),
+                    // Device info & status
+                    _buildDeviceInfoCard(),
+                    const SizedBox(height: 12),
                     
-                    // Files list
-                    Expanded(
-                      child: receivedFiles.isEmpty
-                          ? Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Lottie.asset(
-                                    'assets/empty_folder_animation.json',
-                                    height: 120,
-                                  ),
-                                  SizedBox(height: 16),
-                                  Text(
-                                    'No files received yet',
-                                    style: GoogleFonts.poppins(
-                                      color: Colors.grey[700],
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  SizedBox(height: 8),
-                                  Text(
-                                    'Files you receive will appear here',
-                                    style: GoogleFonts.poppins(
-                                      color: Colors.grey[500],
-                                      fontSize: 14,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ],
-                              ),
-                            )
-                          : ListView.builder(
-                              itemCount: receivedFiles.length,
-                              itemBuilder: (context, index) {
-                                final file = receivedFiles[index];
-                                final fileName = file['name'] as String;
-                                
-                                return FadeInUp(
-                                  duration: Duration(milliseconds: 300 + (index * 50)),
-                                  delay: Duration(milliseconds: 200),
-                                  child: Card(
-                                    elevation: 1,
-                                    margin: EdgeInsets.only(bottom: 8),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: ListTile(
-                                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                      leading: _getFileIcon(fileName, 32),
-                                      title: Text(
-                                        fileName,
-                                        style: GoogleFonts.poppins(
-                                          fontWeight: FontWeight.normal,
-                                          fontSize: 14,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      subtitle: Text(
-                                        '${_formatFileSize(file['size'])} • ${_formatDate(file['date'])}',
-                                        style: GoogleFonts.poppins(
-                                          fontSize: 12,
-                                          color: Colors.grey[600],
-                                        ),
-                                      ),
-                                      trailing: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          IconButton(
-                                            icon: Icon(Icons.open_in_new_rounded, size: 20),
-                                            onPressed: () {
-                                              _openFile(file['path']);
-                                            },
-                                            tooltip: 'Open',
-                                            style: IconButton.styleFrom(
-                                              backgroundColor: Color(0xFF4E6AF3).withOpacity(0.1),
-                                              foregroundColor: Color(0xFF4E6AF3),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                    ),
+                    // Current transfer if any
+                    if (receivedFileName.isNotEmpty)
+                      _buildCurrentTransferCard(),
+                    
+                    // Received files
+                    _buildReceivedFilesCard(),
                   ],
                 ),
               ),
             ),
-          ),
-        ),
-      ],
-    );
-  }
-  
-  Widget _buildDesktopLayout() {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // Left side: Device info and status
-        Expanded(
-          flex: 2,
-          child: Column(
-            children: [
-              // Device info card
-              FadeInLeft(
-                duration: Duration(milliseconds: 600),
-                child: Card(
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Padding(
-                    padding: EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: Color(0xFF2AB673).withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Icon(
-                                Icons.info_rounded,
-                                color: Color(0xFF2AB673),
-                                size: 24,
-                              ),
-                            ),
-                            SizedBox(width: 16),
-                            Text(
-                              'Device Information',
-                              style: GoogleFonts.poppins(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF2AB673),
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 24),
-                        
-                        // Computer name
-                        _buildInfoItem(
-                          Icons.computer_rounded, 
-                          'Device Name', 
-                          computerName,
-                          null,
-                          large: true,
-                        ),
-                        
-                        SizedBox(height: 20),
-                        
-                        // IP Address
-                        _buildInfoItem(
-                          Icons.wifi_rounded, 
-                          'IP Address', 
-                          isLoadingIp ? 'Loading...' : ipAddress,
-                          isLoadingIp ? null : _copyIpToClipboard,
-                          large: true,
-                        ),
-                        
-                        SizedBox(height: 20),
-                        
-                        // Port
-                        _buildInfoItem(
-                          Icons.router_rounded, 
-                          'Port', 
-                          '8080',
-                          null,
-                          large: true,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              
-              SizedBox(height: 20),
-              
-              // Status card
-              FadeInLeft(
-                duration: Duration(milliseconds: 600),
-                delay: Duration(milliseconds: 200),
-                child: Card(
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Padding(
-                    padding: EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: Color(0xFF2AB673).withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Icon(
-                                Icons.sensors_rounded,
-                                color: Color(0xFF2AB673),
-                                size: 24,
-                              ),
-                            ),
-                            SizedBox(width: 16),
-                            Text(
-                              'Status',
-                              style: GoogleFonts.poppins(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF2AB673),
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 24),
-                        
-                        // Status indicator
-                        Row(
-                          children: [
-                            if (isReceivingAnimation && isReceiving)
-                              ScaleTransition(
-                                scale: _pulseAnimation,
-                                child: Container(
-                                  width: 20,
-                                  height: 20,
-                                  decoration: BoxDecoration(
-                                    color: Color(0xFF2AB673),
-                                    shape: BoxShape.circle,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Color(0xFF2AB673).withOpacity(0.3),
-                                        blurRadius: 10,
-                                        spreadRadius: 2,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              )
-                            else
-                              Container(
-                                width: 20,
-                                height: 20,
-                                decoration: BoxDecoration(
-                                  color: isReceiving ? Color(0xFF2AB673) : Colors.grey,
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                            SizedBox(width: 16),
-                            Text(
-                              isReceiving ? 'Listening for files' : 'Not receiving',
-                              style: GoogleFonts.poppins(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                                color: isReceiving ? Color(0xFF2AB673) : Colors.grey[700],
-                              ),
-                            ),
-                          ],
-                        ),
-                        
-                        SizedBox(height: 28),
-                        
-                        // Control buttons
-                        Row(
-                          children: [
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                onPressed: isReceiving ? null : startReceiving,
-                                icon: Icon(Icons.play_arrow_rounded),
-                                label: Text('Start'),
-                                style: ElevatedButton.styleFrom(
-                                  foregroundColor: Colors.white,
-                                  backgroundColor: Color(0xFF2AB673),
-                                  disabledBackgroundColor: Colors.grey[300],
-                                  padding: EdgeInsets.symmetric(vertical: 16),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  elevation: 2,
-                                  shadowColor: Color(0xFF2AB673).withOpacity(0.3),
-                                  textStyle: GoogleFonts.poppins(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 15,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            SizedBox(width: 16),
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                onPressed: isReceiving ? stopReceiving : null,
-                                icon: Icon(Icons.stop_rounded),
-                                label: Text('Stop'),
-                                style: ElevatedButton.styleFrom(
-                                  foregroundColor: Colors.white,
-                                  backgroundColor: Colors.red[400],
-                                  disabledBackgroundColor: Colors.grey[300],
-                                  padding: EdgeInsets.symmetric(vertical: 16),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  elevation: 2,
-                                  shadowColor: Colors.red.withOpacity(0.3),
-                                  textStyle: GoogleFonts.poppins(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 15,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              
-              // Current transfer
-              if (receivedFileName.isNotEmpty) 
-                Expanded(
-                  child: FadeInUp(
-                    duration: Duration(milliseconds: 600),
-                    child: Container(
-                      margin: EdgeInsets.only(top: 20),
-                      child: Card(
-                        elevation: 2,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Padding(
-                          padding: EdgeInsets.all(20),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Container(
-                                    padding: EdgeInsets.all(10),
-                                    decoration: BoxDecoration(
-                                      color: Color(0xFF4E6AF3).withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Icon(
-                                      Icons.downloading_rounded,
-                                      color: Color(0xFF4E6AF3),
-                                      size: 24,
-                                    ),
-                                  ),
-                                  SizedBox(width: 16),
-                                  Text(
-                                    'Current Transfer',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF4E6AF3),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              SizedBox(height: 24),
-                              
-                              Row(
-                                children: [
-                                  _getFileIcon(receivedFileName, 48),
-                                  SizedBox(width: 20),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          receivedFileName,
-                                          style: GoogleFonts.poppins(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 16,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        SizedBox(height: 8),
-                                        Text(
-                                          '${_formatFileSize(bytesReceived)} of ${_formatFileSize(fileSize)}',
-                                          style: GoogleFonts.poppins(
-                                            fontSize: 14,
-                                            color: Colors.grey[600],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              
-                              SizedBox(height: 24),
-                              
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(10),
-                                child: LinearProgressIndicator(
-                                  value: progress,
-                                  backgroundColor: Colors.grey[200],
-                                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4E6AF3)),
-                                  minHeight: 10,
-                                ),
-                              ),
-                              
-                              SizedBox(height: 12),
-                              
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    '${(progress * 100).toStringAsFixed(1)}%',
-                                    style: GoogleFonts.poppins(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                      color: Color(0xFF4E6AF3),
-                                    ),
-                                  ),
-                                  Row(
-                                    children: [
-                                      SizedBox(
-                                        width: 14,
-                                        height: 14,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4E6AF3)),
-                                        ),
-                                      ),
-                                      SizedBox(width: 8),
-                                      Text(
-                                        'Receiving...',
-                                        style: GoogleFonts.poppins(
-                                          fontStyle: FontStyle.italic,
-                                          color: Color(0xFF4E6AF3),
-                                          fontSize: 15,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-        
-        SizedBox(width: 20),
-        
-        // Right side: Received files history
-        Expanded(
-          flex: 3,
-          child: FadeInRight(
-            duration: Duration(milliseconds: 600),
-            child: Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Padding(
-                padding: EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                                                color: Color(0xFF4E6AF3).withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Icon(
-                                Icons.folder_rounded,
-                                color: Color(0xFF4E6AF3),
-                                size: 24,
-                              ),
-                            ),
-                            SizedBox(width: 16),
-                            Text(
-                              'Received Files',
-                              style: GoogleFonts.poppins(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF4E6AF3),
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (receivedFiles.isNotEmpty)
-                          ElevatedButton.icon(
-                            onPressed: _openDownloadsFolder,
-                            icon: Icon(Icons.folder_open_rounded),
-                            label: Text('Open Folder'),
-                            style: ElevatedButton.styleFrom(
-                              foregroundColor: Color(0xFF4E6AF3),
-                              backgroundColor: Color(0xFF4E6AF3).withOpacity(0.1),
-                              elevation: 0,
-                              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              textStyle: GoogleFonts.poppins(
-                                fontWeight: FontWeight.normal,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    SizedBox(height: 20),
-                    
-                    // Files list
-                    Expanded(
-                      child: receivedFiles.isEmpty
-                          ? Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Lottie.asset(
-                                    'assets/empty_folder_animation.json',
-                                    height: 180,
-                                  ),
-                                  SizedBox(height: 24),
-                                  Text(
-                                    'No files received yet',
-                                    style: GoogleFonts.poppins(
-                                      color: Colors.grey[700],
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  SizedBox(height: 12),
-                                  Text(
-                                    'Files you receive will appear here',
-                                    style: GoogleFonts.poppins(
-                                      color: Colors.grey[600],
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )
-                          : ListView.builder(
-                              itemCount: receivedFiles.length,
-                              itemBuilder: (context, index) {
-                                final file = receivedFiles[index];
-                                final fileName = file['name'] as String;
-                                
-                                return FadeInUp(
-                                  duration: Duration(milliseconds: 300 + (index * 50)),
-                                  delay: Duration(milliseconds: 100),
-                                  child: Card(
-                                    elevation: 1,
-                                    margin: EdgeInsets.only(bottom: 12),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(14),
-                                    ),
-                                    child: Padding(
-                                      padding: EdgeInsets.all(16),
-                                      child: Row(
-                                        children: [
-                                          _getFileIcon(fileName, 42),
-                                          SizedBox(width: 20),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  fileName,
-                                                  style: GoogleFonts.poppins(
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 16,
-                                                  ),
-                                                  maxLines: 1,
-                                                  overflow: TextOverflow.ellipsis,
-                                                ),
-                                                SizedBox(height: 4),
-                                                Text(
-                                                  '${_formatFileSize(file['size'])} • ${_formatDate(file['date'])}',
-                                                  style: GoogleFonts.poppins(
-                                                    fontSize: 13,
-                                                    color: Colors.grey[600],
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          Row(
-                                            children: [
-                                              _buildActionButton(
-                                                Icons.open_in_new_rounded, 
-                                                'Open', 
-                                                Color(0xFF4E6AF3),
-                                                () => _openFile(file['path']),
-                                              ),
-                                              SizedBox(width: 8),
-                                              _buildActionButton(
-                                                Icons.folder_open_rounded, 
-                                                'Show in folder', 
-                                                Color(0xFF2AB673),
-                                                _openDownloadsFolder,
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-  
-  Widget _buildInfoItem(IconData icon, String label, String value, Function? onTap, {bool large = false}) {
-    return Row(
-      children: [
-        Container(
-          width: large ? 46 : 40,
-          height: large ? 46 : 40,
-          decoration: BoxDecoration(
-            color: Color(0xFF2AB673).withOpacity(0.1),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(
-            icon,
-            color: Color(0xFF2AB673),
-            size: large ? 22 : 20,
-          ),
-        ),
-        SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: GoogleFonts.poppins(
-                  color: Colors.grey[600],
-                  fontSize: large ? 13 : 12,
-                ),
-              ),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      value,
-                      style: GoogleFonts.poppins(
-                        fontWeight: FontWeight.bold,
-                        fontSize: large ? 16 : 14,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  if (onTap != null)
-                    InkWell(
-                      onTap: () => onTap(),
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        padding: EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: Color(0xFF2AB673).withOpacity(0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Tooltip(
-                          message: 'Copy to clipboard',
-                          child: Icon(
-                            Icons.copy_rounded,
-                            size: 16,
-                            color: Color(0xFF2AB673),
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-  
-  Widget _buildActionButton(IconData icon, String tooltip, Color color, VoidCallback onPressed) {
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onPressed,
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            padding: EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              icon,
-              color: color,
-              size: 22,
-            ),
-          ),
+          ],
         ),
       ),
     );
   }
   
-  Widget _getFileIcon(String fileName, double size) {
+  Widget _buildDeviceInfoCard() {
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Device Info section
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2AB673).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.info_outline_rounded,
+                    color: Color(0xFF2AB673),
+                    size: 14,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  'Device Info',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 12),
+            
+            // IP address and device name
+            Row(
+              children: [
+                Expanded(
+                  child: _buildInfoItem(
+                    'Device Name',
+                    computerName,
+                    Icons.computer_rounded,
+                    null,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildInfoItem(
+                    'IP Address',
+                    isLoadingIp ? 'Loading...' : ipAddress,
+                    Icons.wifi_rounded,
+                    isLoadingIp ? null : _copyIpToClipboard,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildInfoItem(
+                    'Port',
+                    '8080',
+                    Icons.router_rounded,
+                    null,
+                  ),
+                ),
+              ],
+            ),
+            
+            const Divider(height: 24),
+            
+            // Status section
+            Row(
+              children: [
+                if (isReceivingAnimation && isReceiving)
+                  ScaleTransition(
+                    scale: _pulseAnimation,
+                    child: Container(
+                      width: 14,
+                      height: 14,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2AB673),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF2AB673).withOpacity(0.3),
+                            blurRadius: 8,
+                            spreadRadius: 2,
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  Container(
+                    width: 14,
+                    height: 14,
+                    decoration: BoxDecoration(
+                      color: isReceiving ? const Color(0xFF2AB673) : Colors.grey,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                const SizedBox(width: 8),
+                Text(
+                  isReceiving ? 'Listening for files' : 'Not receiving',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: isReceiving ? const Color(0xFF2AB673) : null,
+                  ),
+                ),
+                const Spacer(),
+                // User info badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2AB673).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.person_rounded,
+                        size: 12,
+                        color: Color(0xFF2AB673),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        computerName,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF2AB673),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 12),
+            
+            // Control buttons
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: isReceiving ? null : startReceiving,
+                    icon: const Icon(Icons.play_arrow_rounded, size: 16),
+                    label: const Text('Start', style: TextStyle(fontSize: 13)),
+                    style: ElevatedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      backgroundColor: const Color(0xFF2AB673),
+                      disabledBackgroundColor: Colors.grey[400],
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: isReceiving ? stopReceiving : null,
+                    icon: const Icon(Icons.stop_rounded, size: 16),
+                    label: const Text('Stop', style: TextStyle(fontSize: 13)),
+                    style: ElevatedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      backgroundColor: Colors.red[400],
+                      disabledBackgroundColor: Colors.grey[400],
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildInfoItem(String label, String value, IconData icon, VoidCallback? onTap) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(
+              icon,
+              size: 12,
+              color: const Color(0xFF2AB673),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.grey[400]
+                    : Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 2),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                value,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (onTap != null)
+              InkWell(
+                onTap: onTap,
+                borderRadius: BorderRadius.circular(4),
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  child: const Icon(
+                    Icons.copy,
+                    size: 12,
+                    color: Color(0xFF2AB673),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+  
+  Widget _buildCurrentTransferCard() {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Section header
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4E6AF3).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.downloading_rounded,
+                    color: Color(0xFF4E6AF3),
+                    size: 14,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  'Current Transfer',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 12),
+            
+            // File info and progress
+            Row(
+              children: [
+                _getFileTypeIcon(receivedFileName),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        receivedFileName,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        '${_formatFileSize(bytesReceived)} of ${_formatFileSize(fileSize)}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.grey[400]
+                              : Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 10),
+            
+            // Progress bar
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: progress,
+                backgroundColor: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.grey[700]
+                    : Colors.grey[300],
+                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF4E6AF3)),
+                minHeight: 6,
+              ),
+            ),
+            
+            const SizedBox(height: 8),
+            
+            // Progress percentage and status
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '${(progress * 100).toStringAsFixed(1)}%',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                    color: Color(0xFF4E6AF3),
+                  ),
+                ),
+                Row(
+                  children: [
+                    Container(
+                      width: 10,
+                      height: 10,
+                      child: const CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4E6AF3)),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    const Text(
+                      'Receiving...',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontStyle: FontStyle.italic,
+                        color: Color(0xFF4E6AF3),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildReceivedFilesCard() {
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Section header
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF4E6AF3).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.folder_rounded,
+                        color: Color(0xFF4E6AF3),
+                        size: 14,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Received Files',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+                if (receivedFiles.isNotEmpty)
+                  TextButton.icon(
+                    onPressed: _openDownloadsFolder,
+                    icon: const Icon(Icons.folder_open_rounded, size: 14),
+                    label: const Text('Open Folder', style: TextStyle(fontSize: 12)),
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFF4E6AF3),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    ),
+                  ),
+              ],
+            ),
+            
+            const SizedBox(height: 8),
+            
+            // Files list
+            _buildFilesList(),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildFilesList() {
+    if (receivedFiles.isEmpty) {
+      return Container(
+        height: 180, // Fixed height for empty state
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Lottie.asset(
+                'assets/empty_folder_animation.json',
+                height: 80,
+                errorBuilder: (context, error, stackTrace) {
+                  return Icon(
+                    Icons.folder_open,
+                    size: 40,
+                    color: Colors.grey[300],
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'No files received yet',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.grey[400]
+                      : Colors.grey[600],
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Files you receive will appear here',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.grey[500]
+                      : Colors.grey[500],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    
+    return Container(
+      constraints: BoxConstraints(
+        maxHeight: 300, // Maximum height for the list
+      ),
+      child: ListView.builder(
+        shrinkWrap: true,
+        physics: const ClampingScrollPhysics(),
+        itemCount: receivedFiles.length,
+        itemBuilder: (context, index) {
+          final file = receivedFiles[index];
+          return Card(
+            margin: const EdgeInsets.only(bottom: 6),
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              leading: _getFileTypeIcon(file['name']),
+              title: Text(
+                file['name'],
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              subtitle: Text(
+                '${_formatFileSize(file['size'])} • ${_formatDate(file['date'])}',
+                style: const TextStyle(fontSize: 11),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              trailing: IconButton(
+                icon: const Icon(Icons.open_in_new, size: 16),
+                onPressed: () => _openFile(file['path']),
+                tooltip: 'Open',
+                iconSize: 16,
+                style: IconButton.styleFrom(
+                  backgroundColor: const Color(0xFF4E6AF3).withOpacity(0.1),
+                  foregroundColor: const Color(0xFF4E6AF3),
+                  padding: const EdgeInsets.all(6),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+  
+  Widget _getFileTypeIcon(String fileName) {
     IconData iconData;
     Color iconColor;
     
@@ -1775,15 +1194,15 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
     }
     
     return Container(
-      padding: EdgeInsets.all(size * 0.25),
+      padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
         color: iconColor.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(6),
       ),
       child: Icon(
         iconData,
         color: iconColor,
-        size: size * 0.7,
+        size: 16,
       ),
     );
   }
