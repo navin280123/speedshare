@@ -38,7 +38,6 @@ void main() {
     expect(find.text('Settings'), findsOneWidget);
 
     // Verify that the user information is shown
-    expect(find.text('navin280123'), findsOneWidget);
     
     // Test navigation to Send screen
     await tester.tap(find.text('Send').first);

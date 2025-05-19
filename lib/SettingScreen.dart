@@ -3,6 +3,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:animate_do/animate_do.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'dart:io';
 
 class SettingsScreen extends StatefulWidget {
@@ -12,8 +13,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   // User settings
-  String username = 'navin280123';
-  DateTime expiryDate = DateTime(2025, 5, 15);
+  DateTime expiryDate = DateTime(2029, 5, 15);
   
   // App settings
   String downloadPath = '';
@@ -392,7 +392,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 16),
           
           // About section
-          _buildAboutSection(),
+          _buildAboutSection(context),
         ],
       ),
     );
@@ -796,111 +796,236 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
   
-  Widget _buildAboutSection() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF4E6AF3).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(
-                    Icons.info_outline_rounded,
-                    size: 18,
-                    color: Color(0xFF4E6AF3),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                const Text(
-                  'About',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            
-            // App logo and info
-            Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF4E6AF3), Color(0xFF2AB673)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.swap_horiz_rounded,
-                    size: 32,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'SpeedShare',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF4E6AF3),
-                  ),
-                ),
-                Text(
-                  'Version 1.0.0',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Theme.of(context).brightness == Brightness.dark
-                        ? Colors.grey[400]
-                        : Colors.grey[600],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  '© 2025 ${username}. All rights reserved.',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Theme.of(context).brightness == Brightness.dark
-                        ? Colors.grey[500]
-                        : Colors.grey[600],
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    TextButton(
-                      onPressed: () {},
-                      child: const Text(
-                        'Privacy Policy',
-                        style: TextStyle(fontSize: 11),
-                      ),
-                    ),
-                    Text('•', style: TextStyle(color: Colors.grey)),
-                    TextButton(
-                      onPressed: () {},
-                      child: const Text(
-                        'Terms of Service',
-                        style: TextStyle(fontSize: 11),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ],
-        ),
+  Widget _buildAboutSection(BuildContext context) {
+  // Helper to show dialogs for Privacy Policy and Terms
+  void _showInfoDialog(String title, String content) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: SingleChildScrollView(child: Text(content)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Close'),
+          ),
+        ],
       ),
     );
   }
+
+  // Helper to launch external URLs
+  void _launchUrl(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  return Card(
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4E6AF3).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.info_outline_rounded,
+                  size: 18,
+                  color: Color(0xFF4E6AF3),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'About',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // App logo and info
+          Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF4E6AF3), Color(0xFF2AB673)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.swap_horiz_rounded,
+                  size: 32,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'SpeedShare',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF4E6AF3),
+                ),
+              ),
+              Text(
+                'Version 1.0.0',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.grey[400]
+                      : Colors.grey[600],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '© 2025 SpeedShare. All rights reserved.',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.grey[500]
+                      : Colors.grey[600],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  TextButton(
+                    onPressed: () {
+                      _showInfoDialog(
+                        'Privacy Policy',
+                        'Privacy Policy\n\n'
+                        'Last updated: May 19, 2025\n\n'
+                        'SpeedShare we values your privacy. This Privacy Policy explains how SpeedShare handles your information when you use our application to share files between two computers over the same WiFi network.\n\n'
+                        '1. Information Collection\n'
+                        'SpeedShare does not collect, store, or transmit any personal information or files to any server. All file transfers occur directly between devices on your local WiFi network.\n\n'
+                        '2. How We Use Your Information\n'
+                        'Since we do not collect any personal data, we do not use or share your information in any way.\n\n'
+                        '3. File Transfers\n'
+                        'All files shared using SpeedShare remain within your local network and are not uploaded to any external servers. You are responsible for ensuring that you trust the devices you are connecting to.\n\n'
+                        '4. Security\n'
+                        'We implement reasonable security measures to protect connections between devices; however, please ensure your WiFi network is secure and only connect to trusted devices.\n\n'
+                        '5. Changes to This Policy\n'
+                        'We may update our Privacy Policy from time to time. Any changes will be reflected within the application.\n\n'
+                        '6. Contact Us\n'
+                        'If you have any questions about this Privacy Policy, please contact us at kumarnavinverma7@gmail.com.',
+                      );
+                    },
+                    child: const Text(
+                      'Privacy Policy',
+                      style: TextStyle(fontSize: 11),
+                    ),
+                  ),
+                  Text('•', style: TextStyle(color: Colors.grey)),
+                  TextButton(
+                    onPressed: () {
+                      _showInfoDialog(
+                        'Terms of Service',
+                        'Terms of Service\n\n'
+                        'Last updated: May 19, 2025\n\n'
+                        'Please read these Terms of Service ("Terms") before using SpeedShare ("the App"). By using the App, you agree to be bound by these Terms.\n\n'
+                        '1. Use of the App\n'
+                        'SpeedShare is intended for sharing files between two computers over the same WiFi network. You are responsible for using the App in compliance with all applicable laws and regulations.\n\n'
+                        '2. User Responsibility\n'
+                        'You are solely responsible for the files you choose to share and receive. Do not use SpeedShare to transfer illegal, harmful, or infringing content.\n\n'
+                        '3. No Warranty\n'
+                        'SpeedShare is provided "as is" without any warranties. We do not guarantee that the App will be error-free or uninterrupted.\n\n'
+                        '4. Limitation of Liability\n'
+                        'We are not liable for any damages or losses resulting from the use of SpeedShare, including but not limited to data loss, unauthorized access, or network issues.\n\n'
+                        '5. Modifications\n'
+                        'We reserve the right to modify these Terms at any time. Continued use of the App after changes means you accept the new Terms.\n\n'
+                        '6. Contact Us\n'
+                        'If you have questions about these Terms, contact us at kumarnavinverma7@gmail.com.',
+                      );
+                    },
+                    child: const Text(
+                      'Terms of Service',
+                      style: TextStyle(fontSize: 11),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              // Navin Kumar's details and socials
+              Column(
+                children: [
+                  const CircleAvatar(
+                    radius: 28,
+                    backgroundImage: NetworkImage(
+                      'https://avatars.githubusercontent.com/u/103583078?s=400&u=80572f8430b374171aaa46ee2d9c67c3b62c3b65&v=4', // Change to your GitHub avatar if needed
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Navin Kumar',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const Text(
+                    'Flutter Developer',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  InkWell(
+                    onTap: () => _launchUrl('mailto:kumarnavinverma7@gmail.com'),
+                    child: const Text(
+                      'kumarnavinverma7@gmail.com',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF4E6AF3),
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.code),
+                        tooltip: 'GitHub',
+                        onPressed: () => _launchUrl('https://github.com/navin280123'),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.business),
+                        tooltip: 'LinkedIn',
+                        onPressed: () => _launchUrl('https://www.linkedin.com/in/navin-kumar-verma/'),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.alternate_email),
+                        tooltip: 'Instagram',
+                        onPressed: () => _launchUrl('https://www.instagram.com/navin.2801/'),
+                      ),
+                      // Add more socials if desired
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
+}
 }

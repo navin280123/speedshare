@@ -36,8 +36,8 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
   late Animation<double> _pulseAnimation;
 
   // Fixed date/time and user login
-  final String currentDateTime = '2025-05-16 16:52:52';
-  final String userLogin = 'navin280123';
+  final String currentDateTime = DateFormat('dd MMM yyyy, HH:mm').format(DateTime.now());
+  final String userLogin = Platform.localHostname;
 
   @override
   void initState() {

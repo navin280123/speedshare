@@ -41,8 +41,7 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
   String _searchQuery = '';
   List<ReceiverDevice> _filteredReceivers = [];
 
-  final String _currentDateTime = '2025-05-16 17:22:05';
-  final String _userLogin = 'navin280123';
+  final String _userLogin = Platform.localHostname;
 
   @override
   void initState() {
