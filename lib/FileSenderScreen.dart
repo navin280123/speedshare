@@ -6,9 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:mime/mime.dart';
 import 'package:desktop_drop/desktop_drop.dart';
-import 'package:animate_do/animate_do.dart';
 import 'package:lottie/lottie.dart';
-import 'package:flutter_spinkit/flutter_spinkit.dart';
 
 class FileSenderScreen extends StatefulWidget {
   @override
@@ -16,10 +14,7 @@ class FileSenderScreen extends StatefulWidget {
 }
 
 class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerProviderStateMixin {
-  // Animation controllers
   late AnimationController _controller;
-  
-  // File handling variables
   bool _isSending = false;
   double _progress = 0.0;
   int _totalFileSize = 0;
@@ -30,64 +25,50 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
   List<FileToSend> _selectedFiles = [];
   bool _transferComplete = false;
 
-  // Connection and discovery variables
   bool isScanning = false;
   bool isConnecting = false;
   Socket? socket;
   Timer? _scanTimer;
   String? _receiverName;
 
-  // For device discovery
   List<ReceiverDevice> availableReceivers = [];
   int _selectedReceiverIndex = -1;
   bool _isDiscovering = false;
   Timer? _discoveryTimer;
   RawDatagramSocket? _discoverySocket;
-  
-  // UI state
-  int _currentStep = 1; // 1: Select file, 2: Select receiver, 3: Transfer
+
+  int _currentStep = 1;
   String _searchQuery = '';
   List<ReceiverDevice> _filteredReceivers = [];
 
-  // Fixed date/time and user login
   final String _currentDateTime = '2025-05-16 17:22:05';
   final String _userLogin = 'navin280123';
 
   @override
   void initState() {
     super.initState();
-    
-    // Initialize animation controller
+
     _controller = AnimationController(
       duration: const Duration(milliseconds: 400),
       vsync: this,
     );
-    
+
     _controller.forward();
-    
-    // Start scanning for devices
     startScanning();
 
-    // Set up periodic discovery
     _discoveryTimer = Timer.periodic(Duration(seconds: 30), (timer) {
       if (mounted) startScanning();
     });
-    
-    // Initialize filtered receivers
+
     _filteredReceivers = availableReceivers;
   }
 
   void startScanning() {
     if (!mounted) return;
-    
     setState(() {
       isScanning = true;
     });
-
-    // Use UDP discovery to find receivers
     discoverWithUDP();
-
-    // Set a timeout to end scanning
     _scanTimer = Timer(Duration(seconds: 5), () {
       if (mounted) {
         setState(() {
@@ -104,24 +85,19 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
         availableReceivers.clear();
         _filteredReceivers = [];
       });
-      
-      // Create UDP socket for discovery
+
       _discoverySocket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
-      
-      // Listen for responses
+
       _discoverySocket!.listen((event) {
         if (event == RawSocketEvent.read) {
           final datagram = _discoverySocket!.receive();
           if (datagram != null) {
             final message = utf8.decode(datagram.data);
-            
             if (message.startsWith('SPEEDSHARE_RESPONSE:')) {
               final parts = message.split(':');
               if (parts.length >= 3) {
                 final deviceName = parts[1];
                 final ipAddress = datagram.address.address;
-                
-                // Add to the list if not already present
                 if (mounted) {
                   setState(() {
                     if (!availableReceivers.any((device) => device.ip == ipAddress)) {
@@ -139,48 +115,32 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
           }
         }
       });
-      
-      // Try targeted discovery instead of broadcasting
+
       final interfaces = await NetworkInterface.list();
       for (var interface in interfaces) {
-        // Skip loopback interfaces
         if (interface.name.contains('lo')) continue;
-        
         for (var addr in interface.addresses) {
           if (addr.type == InternetAddressType.IPv4) {
-            // Get the subnet for this network interface
             final parts = addr.address.split('.');
             if (parts.length == 4) {
               final subnet = parts.sublist(0, 3).join('.');
               final message = utf8.encode('SPEEDSHARE_DISCOVERY');
-              
-              // Try sending to specific common addresses in the subnet
               try {
-                // Try subnet's gateway (usually .1)
                 final gatewayAddress = InternetAddress('$subnet.1');
                 _discoverySocket!.send(message, gatewayAddress, 8081);
-                
-                // Try device's own address (for loopback discovery)
                 final ownAddress = InternetAddress(addr.address);
                 _discoverySocket!.send(message, ownAddress, 8081);
-                
-                // Try a few other common IPs
                 for (int i = 2; i < 10; i++) {
                   _discoverySocket!.send(message, InternetAddress('$subnet.$i'), 8081);
                 }
-                
-                // Try sending to subnet broadcast (less likely to be blocked)
                 _discoverySocket!.send(message, InternetAddress('$subnet.255'), 8081);
               } catch (e) {
                 print('Failed to send discovery packet: $e');
-                // Continue trying other addresses
               }
             }
           }
         }
       }
-      
-      // Fall back to TCP scanning if no devices found
       Timer(Duration(seconds: 2), () {
         if (mounted) {
           if (availableReceivers.isEmpty) {
@@ -194,32 +154,22 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
           }
         }
       });
-      
     } catch (e) {
       print('UDP discovery error: $e');
-      
-      // Fallback to direct TCP scanning
       if (mounted) checkDirectTCPConnections();
     }
   }
 
-  // Fallback method to check TCP connections directly
   void checkDirectTCPConnections() async {
     try {
       final interfaces = await NetworkInterface.list();
-
       for (var interface in interfaces) {
-        // Skip loopback interfaces
         if (interface.name.contains('lo')) continue;
-
         for (var addr in interface.addresses) {
           if (addr.type == InternetAddressType.IPv4) {
-            // Get the network prefix (e.g., 192.168.1)
             final parts = addr.address.split('.');
             if (parts.length == 4) {
               final prefix = parts.sublist(0, 3).join('.');
-
-              // Scan some common IPs
               for (int i = 1; i <= 10; i++) {
                 await checkReceiver('$prefix.$i');
               }
@@ -246,17 +196,14 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
 
   Future<void> checkReceiver(String ip) async {
     try {
-      // Try to connect to the potential receiver with a short timeout
       final socket =
           await Socket.connect(ip, 8080, timeout: Duration(milliseconds: 500))
               .catchError((e) => null);
 
       if (socket == null) return;
 
-      // Listen for the device name
       final completer = Completer<String?>();
 
-      // Set a timeout
       Timer(Duration(seconds: 1), () {
         if (!completer.isCompleted) {
           completer.complete(null);
@@ -273,13 +220,11 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
         }
       });
 
-      // Wait for device name or timeout
       final deviceName = await completer.future;
       socket.destroy();
 
       if (deviceName != null && deviceName.isNotEmpty && mounted) {
         setState(() {
-          // Add to list if not already present
           if (!availableReceivers.any((device) => device.ip == ip)) {
             availableReceivers.add(ReceiverDevice(
               name: deviceName,
@@ -289,9 +234,7 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
           }
         });
       }
-    } catch (e) {
-      // Connection failed, not a receiver
-    }
+    } catch (e) {}
   }
 
   void connectToReceiver(String ip, [String? name]) async {
@@ -313,21 +256,16 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
       );
       return;
     }
-
     setState(() {
       isConnecting = true;
-      _currentStep = 3; // Move to transfer step
+      _currentStep = 3;
     });
-
     try {
       socket = await Socket.connect(ip, 8080, timeout: Duration(seconds: 5));
 
       String deviceName = name ?? '';
-
-      // If no name was provided, try to get it from the socket
       if (deviceName.isEmpty) {
         final completer = Completer<String>();
-
         socket!.listen((data) {
           String message = String.fromCharCodes(data);
           if (message.startsWith('DEVICE_NAME:')) {
@@ -345,8 +283,6 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
             completer.completeError(e);
           }
         });
-
-        // Wait briefly for device name
         try {
           deviceName = await completer.future.timeout(Duration(seconds: 1));
         } catch (e) {
@@ -377,13 +313,13 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
         ),
       );
 
-      // Set up listener for responses from receiver
+      // We will listen for READY_FOR_FILE_DATA and TRANSFER_COMPLETE
       socket!.listen((data) {
         final message = utf8.decode(data);
         if (message == 'READY_FOR_FILE_DATA') {
-          // Continue sending data if we were waiting for a ready signal
+          // Start sending data for the current file
+          _sendCurrentFileData();
         } else if (message == 'TRANSFER_COMPLETE') {
-          // Move to next file or complete transfer
           _handleFileTransferComplete();
         }
       }, onError: (error) {
@@ -430,16 +366,15 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
         }
       });
 
-      // Start sending files
+      // Start the file transfer handshake for the first file
       _startFileTransfer();
     } catch (e) {
       if (mounted) {
         setState(() {
           isConnecting = false;
-          _currentStep = 2; // Go back to receiver selection
+          _currentStep = 2;
         });
       }
-      
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
@@ -466,21 +401,18 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
   void _pickFile() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.any,
-      allowMultiple: true, // Allow multiple files
+      allowMultiple: true,
       dialogTitle: 'Select files to send',
     );
-    
     if (result != null && result.files.isNotEmpty) {
       List<FileToSend> files = [];
       int totalSize = 0;
-      
       for (var file in result.files) {
         if (file.path != null) {
           File fileData = File(file.path!);
           String fileName = file.path!.split(Platform.isWindows ? '\\' : '/').last;
           int fileSize = fileData.lengthSync();
           String fileType = lookupMimeType(file.path!) ?? 'application/octet-stream';
-          
           files.add(FileToSend(
             file: fileData,
             name: fileName,
@@ -490,19 +422,14 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
             bytesSent: 0,
             status: 'Pending',
           ));
-          
           totalSize += fileSize;
         }
       }
-      
       _prepareFiles(files, totalSize);
-      
-      // Play animation and update step
       _controller.reset();
       _controller.forward();
-      
       setState(() {
-        _currentStep = 2; // Move to receiver selection
+        _currentStep = 2;
       });
     }
   }
@@ -522,7 +449,6 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
     setState(() {
       _totalFileSize -= _selectedFiles[index].size;
       _selectedFiles.removeAt(index);
-      
       if (_selectedFiles.isEmpty) {
         _filesSelected = false;
         _totalFileSize = 0;
@@ -542,26 +468,20 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
     if (_selectedFiles.isEmpty || _currentFileIndex >= _selectedFiles.length) {
       return;
     }
-    
     setState(() {
       _isSending = true;
-      
-      // Reset progress for the current file
       _selectedFiles[_currentFileIndex].progress = 0.0;
       _selectedFiles[_currentFileIndex].bytesSent = 0;
       _selectedFiles[_currentFileIndex].status = 'Sending';
     });
-    
-    _sendCurrentFile();
+    // Start the handshake: send metadata, then wait for READY_FOR_FILE_DATA
+    _sendCurrentFileMetadata();
   }
 
-  void _sendCurrentFile() async {
+  void _sendCurrentFileMetadata() async {
     if (socket == null || _currentFileIndex >= _selectedFiles.length) return;
-
     final currentFile = _selectedFiles[_currentFileIndex];
-
     try {
-      // Create metadata in JSON format
       final metadata = {
         'fileName': currentFile.name,
         'fileSize': currentFile.size,
@@ -571,40 +491,62 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
         'totalFiles': _selectedFiles.length,
         'fileIndex': _currentFileIndex,
       };
-
-      // Convert metadata to JSON string
       final metadataStr = json.encode(metadata);
       final metadataBytes = utf8.encode(metadataStr);
 
-      // Send metadata size as first 4 bytes (int32)
       final metadataSize = Uint8List(4);
       ByteData.view(metadataSize.buffer).setInt32(0, metadataBytes.length);
       socket!.add(metadataSize);
-
-      // Send metadata
       socket!.add(metadataBytes);
+      await socket!.flush();
+      // Do not send file data here! Wait for READY_FOR_FILE_DATA from receiver
+      // The socket's listener (set up in connectToReceiver) will call _sendCurrentFileData
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _selectedFiles[_currentFileIndex].status = 'Failed';
+          _isSending = false;
+        });
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.error_outline_rounded, color: Colors.white),
+              SizedBox(width: 10),
+              Text('Error sending metadata: ${e.toString().substring(0, min(e.toString().length, 50))}'),
+            ],
+          ),
+          backgroundColor: Colors.red[700],
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          margin: EdgeInsets.all(20),
+          action: SnackBarAction(
+            label: 'Retry',
+            textColor: Colors.white,
+            onPressed: _sendCurrentFileMetadata,
+          ),
+        ),
+      );
+    }
+  }
 
-      // Wait for a small delay to ensure metadata is processed
-      await Future.delayed(Duration(milliseconds: 100));
-
-      // Read file as bytes
+  void _sendCurrentFileData() async {
+    if (socket == null || _currentFileIndex >= _selectedFiles.length) return;
+    final currentFile = _selectedFiles[_currentFileIndex];
+    try {
       final fileBytes = await currentFile.file.readAsBytes();
-
-      // Adaptive buffer size based on file size
-      final int bufferSize = currentFile.size > 100 * 1024 * 1024 
-          ? 32 * 1024  // 32KB for large files
-          : 4 * 1024;  // 4KB for smaller files
-          
+      final int bufferSize = currentFile.size > 100 * 1024 * 1024
+          ? 32 * 1024
+          : 4 * 1024;
       int bytesSent = 0;
       int lastProgressUpdate = 0;
-      final int updateThreshold = (currentFile.size / 100).round(); // Update every 1%
+      final int updateThreshold = (currentFile.size / 100).round();
 
       for (int i = 0; i < fileBytes.length; i += bufferSize) {
-        // Check if socket is still connected
         if (socket == null) {
           throw Exception("Connection lost");
         }
-
         int end = (i + bufferSize < fileBytes.length)
             ? i + bufferSize
             : fileBytes.length;
@@ -614,26 +556,19 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
         bytesSent += chunk.length;
         _totalBytesSent += chunk.length;
 
-        // Only update UI every 1% to avoid excessive rebuilds
         if (bytesSent - lastProgressUpdate > updateThreshold && mounted) {
           setState(() {
-            // Update progress for current file
             _selectedFiles[_currentFileIndex].progress = bytesSent / fileBytes.length;
             _selectedFiles[_currentFileIndex].bytesSent = bytesSent;
-            
-            // Update overall progress
             _progress = _totalBytesSent / _totalFileSize;
           });
           lastProgressUpdate = bytesSent;
         }
-
-        // Adaptive delay based on network conditions
         if (i % (bufferSize * 10) == 0) {
           await Future.delayed(Duration(milliseconds: 1));
         }
       }
 
-      // Ensure progress shows 100% for current file
       if (mounted) {
         setState(() {
           _selectedFiles[_currentFileIndex].progress = 1.0;
@@ -642,7 +577,6 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
         });
       }
 
-      // If we don't get the completion message within a timeout, move to next file
       Timer(Duration(seconds: 15), () {
         if (_isSending && _selectedFiles[_currentFileIndex].progress >= 0.99 && mounted) {
           _handleFileTransferComplete();
@@ -655,7 +589,6 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
           _isSending = false;
         });
       }
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
@@ -672,7 +605,7 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
           action: SnackBarAction(
             label: 'Retry',
             textColor: Colors.white,
-            onPressed: _sendCurrentFile,
+            onPressed: _sendCurrentFileData,
           ),
         ),
       );
@@ -681,20 +614,13 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
 
   void _handleFileTransferComplete() {
     if (!mounted) return;
-    
     setState(() {
       _selectedFiles[_currentFileIndex].status = 'Completed';
-      
-      // Move to the next file
       _currentFileIndex++;
-      
-      // If all files are sent, mark transfer as complete
       if (_currentFileIndex >= _selectedFiles.length) {
         _isSending = false;
         _transferComplete = true;
         _progress = 1.0;
-        
-        // Show completion message
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
@@ -725,19 +651,17 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
           ),
         );
       } else {
-        // Continue with the next file
-        _sendCurrentFile();
+        // For next file: send metadata, wait for READY_FOR_FILE_DATA, then send data
+        _sendCurrentFileMetadata();
       }
     });
   }
 
-  // Filter receivers based on search query
   List<ReceiverDevice> _filterReceivers() {
     if (_searchQuery.isEmpty) {
       return availableReceivers;
     }
-    
-    return availableReceivers.where((device) => 
+    return availableReceivers.where((device) =>
       device.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
       device.ip.contains(_searchQuery)
     ).toList();
@@ -764,7 +688,7 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
       return Icons.insert_drive_file_rounded;
     }
   }
-  
+
   Color _getFileIconColor(String fileType) {
     if (fileType.startsWith('image/')) {
       return Color(0xFF3498db);
@@ -787,7 +711,6 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
     }
   }
 
-  // Calculate the minimum of two integers (helper function)
   int min(int a, int b) {
     return a < b ? a : b;
   }
@@ -801,8 +724,7 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
     socket?.close();
     super.dispose();
   }
-
-  @override
+   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
@@ -940,16 +862,14 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
       ),
     );
   }
-
-  Widget _buildStepConnector(bool isActive) {
+   Widget _buildStepConnector(bool isActive) {
     return Container(
       width: 40,
       height: 2,
       color: isActive ? const Color(0xFF4E6AF3) : Colors.grey[300],
     );
   }
-  
-  Widget _buildCurrentStepContent() {
+   Widget _buildCurrentStepContent() {
     switch (_currentStep) {
       case 1:
         return _buildSelectFileStep();
@@ -1247,9 +1167,9 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Selected files summary - Fixed at top
             Row(
               children: [
-                // Selected files summary
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
@@ -1304,7 +1224,7 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
             
             const SizedBox(height: 16),
             
-            // Search bar
+            // Search bar - Fixed below summary
             Container(
               decoration: BoxDecoration(
                 color: Theme.of(context).cardColor,
@@ -1350,7 +1270,7 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
             
             const SizedBox(height: 16),
             
-            // Receiver list
+            // Receiver list - Scrollable content
             Expanded(
               child: _filteredReceivers.isEmpty
                   ? _buildEmptyReceiverState()
@@ -1439,7 +1359,7 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
             
             const SizedBox(height: 16),
             
-            // Bottom navigation
+            // Bottom navigation - Fixed at bottom
             Row(
               children: [
                 Expanded(
@@ -1498,7 +1418,6 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
       ),
     );
   }
-  
   Widget _buildEmptyReceiverState() {
     return Center(
       child: Column(
@@ -1506,7 +1425,7 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
         children: [
           Lottie.asset(
             'assets/searchss.json',
-            height: 120,
+            height: 20,
             errorBuilder: (context, error, stackTrace) {
               return Icon(
                 Icons.search_off_rounded,
@@ -1515,7 +1434,7 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
               );
             },
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
           Text(
             'No receivers found',
             style: TextStyle(
@@ -1528,7 +1447,7 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
           ),
           const SizedBox(height: 8),
           Text(
-            'Make sure devices are online and have receiving mode enabled',
+            'Make sure devices are online',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: Colors.grey[500],
@@ -1856,6 +1775,10 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
       ),
     );
   }
+
+  // ... UI code remains unchanged: build(), _buildStepItem, _buildStepConnector, etc. ...
+  // [The rest of your UI code is unchanged and omitted here for brevity.]
+  // Please copy from your original code above, or let me know if you want the whole file including UI pasted again.
 }
 
 class ReceiverDevice {
@@ -1872,7 +1795,7 @@ class FileToSend {
   final String type;
   double progress;
   int bytesSent;
-  String status; // 'Pending', 'Sending', 'Completed', 'Failed'
+  String status;
 
   FileToSend({
     required this.file,

@@ -30,11 +30,11 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
   String downloadDirectoryPath = '';
   bool isLoadingIp = true;
   bool isReceivingAnimation = false;
-  
+
   // Animation controller
   late AnimationController _animationController;
   late Animation<double> _pulseAnimation;
-  
+
   // Fixed date/time and user login
   final String currentDateTime = '2025-05-16 16:52:52';
   final String userLogin = 'navin280123';
@@ -45,54 +45,44 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
     _getIpAddress();
     _getComputerName();
     _getDownloadsDirectory();
-    
-    // Initialize animation controller
+
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 1500),
       vsync: this,
     );
-    
+
     _pulseAnimation = Tween<double>(begin: 1.0, end: 1.2).animate(
       CurvedAnimation(
         parent: _animationController,
         curve: Curves.easeInOut,
       ),
     );
-    
+
     _animationController.repeat(reverse: true);
   }
 
-  // Get the downloads directory
   void _getDownloadsDirectory() async {
     try {
       Directory? downloadsDirectory = await getDownloadsDirectory();
       String speedsharePath = '${downloadsDirectory!.path}/speedshare';
       Directory speedshareDirectory = Directory(speedsharePath);
-      
-      // Create the speedshare directory if it doesn't exist
       if (!await speedshareDirectory.exists()) {
         await speedshareDirectory.create(recursive: true);
       }
-      
       setState(() {
         downloadDirectoryPath = speedsharePath;
       });
-      
-      // Load previously received files
       _loadReceivedFiles(speedshareDirectory);
     } catch (e) {
       print('Error getting downloads directory: $e');
     }
   }
 
-  // Load previously received files from the directory
   void _loadReceivedFiles(Directory directory) async {
     try {
       List<FileSystemEntity> files = await directory.list().toList();
       files.sort((a, b) => b.statSync().modified.compareTo(a.statSync().modified));
-      
       List<Map<String, dynamic>> filesList = [];
-      
       for (var file in files) {
         if (file is File) {
           filesList.add({
@@ -103,7 +93,6 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
           });
         }
       }
-      
       setState(() {
         receivedFiles = filesList;
       });
@@ -112,16 +101,14 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
     }
   }
 
-  // Get the device's IP Address
   void _getIpAddress() async {
     setState(() {
       isLoadingIp = true;
     });
-    
     try {
       for (var interface in await NetworkInterface.list()) {
         for (var addr in interface.addresses) {
-          if (addr.type == InternetAddressType.IPv4 && 
+          if (addr.type == InternetAddressType.IPv4 &&
               !addr.address.startsWith('127.') &&
               !addr.address.startsWith('0.')) {
             setState(() {
@@ -135,17 +122,14 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
     } catch (e) {
       print('Error getting IP address: $e');
     }
-    
     setState(() {
       ipAddress = 'Not available';
       isLoadingIp = false;
     });
   }
 
-  // Get computer/device name
   void _getComputerName() async {
     try {
-      // For simplicity, using hostname as computer name
       final hostname = Platform.localHostname;
       setState(() {
         computerName = hostname;
@@ -157,34 +141,29 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
     }
   }
 
-  // Start receiving files
   void startReceiving() async {
     try {
-      // Start the server socket for file transfers
       serverSocket = await ServerSocket.bind(InternetAddress.anyIPv4, 8080);
-      
-      // Set up discovery response
+
       _discoverySocket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 8081);
       _discoverySocket!.listen((event) {
         if (event == RawSocketEvent.read) {
           final datagram = _discoverySocket!.receive();
           if (datagram != null) {
             final message = utf8.decode(datagram.data);
-            
             if (message == 'SPEEDSHARE_DISCOVERY') {
-              // Send back device info
               final responseMessage = utf8.encode('SPEEDSHARE_RESPONSE:$computerName:READY');
               _discoverySocket!.send(responseMessage, datagram.address, datagram.port);
             }
           }
         }
       });
-      
+
       setState(() {
         isReceiving = true;
         isReceivingAnimation = true;
       });
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
@@ -207,7 +186,11 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
         bool receivingHeaderSize = true;
         int metadataSize = 0;
         List<int> headerBuffer = [];
-        
+        int expectedFileSize = 0;
+        String expectedFileName = '';
+        File? fileForWrite;
+        int writtenFileBytes = 0;
+
         client.listen((data) async {
           if (receivingMetadata) {
             if (receivingHeaderSize) {
@@ -215,114 +198,89 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
               if (data.length >= 4) {
                 ByteData byteData = ByteData.sublistView(Uint8List.fromList(data.sublist(0, 4)));
                 metadataSize = byteData.getInt32(0);
-                
-                // Any remaining data is part of the metadata
                 if (data.length > 4) {
                   headerBuffer.addAll(data.sublist(4));
                 }
-                
                 receivingHeaderSize = false;
-                
-                // If we already have the complete metadata
                 if (headerBuffer.length >= metadataSize) {
                   final metadataJson = utf8.decode(headerBuffer.sublist(0, metadataSize));
                   final metadata = json.decode(metadataJson) as Map<String, dynamic>;
-                  
-                  // Process metadata
-                  receivedFileName = sanitizeFileName(p.basename(metadata['fileName']));
-                  fileSize = metadata['fileSize'];
+                  expectedFileName = sanitizeFileName(p.basename(metadata['fileName']));
+                  expectedFileSize = metadata['fileSize'];
+                  writtenFileBytes = 0;
+                  receivedFileName = expectedFileName;
+                  fileSize = expectedFileSize;
                   bytesReceived = 0;
-                  
-                  // Prepare for file data
-                  receivedFile = File('$downloadDirectoryPath/$receivedFileName');
-                  if (await receivedFile!.exists()) {
-                    await receivedFile!.delete(); // Overwrite existing file
+                  fileForWrite = File('$downloadDirectoryPath/$expectedFileName');
+                  if (await fileForWrite!.exists()) {
+                    await fileForWrite!.delete();
                   }
-                  
-                  // Switch to file data mode
                   receivingMetadata = false;
-                  
-                  // If there's more data beyond metadata, it's file content
+                  client.write('READY_FOR_FILE_DATA');
                   if (headerBuffer.length > metadataSize) {
                     final fileData = headerBuffer.sublist(metadataSize);
-                    receivedFile!.writeAsBytesSync(fileData, mode: FileMode.append);
-                    bytesReceived += fileData.length;
-                    
-                    // Update progress
+                    fileForWrite!.writeAsBytesSync(fileData, mode: FileMode.append);
+                    writtenFileBytes += fileData.length;
+                    bytesReceived = writtenFileBytes;
                     setState(() {
-                      progress = bytesReceived / fileSize;
+                      progress = writtenFileBytes / expectedFileSize;
                     });
                   }
                 }
               } else {
-                // We received less than 4 bytes, keep accumulating
                 headerBuffer.addAll(data);
               }
             } else {
-              // We're collecting metadata bytes
               headerBuffer.addAll(data);
-              
               if (headerBuffer.length >= metadataSize) {
                 final metadataJson = utf8.decode(headerBuffer.sublist(0, metadataSize));
                 final metadata = json.decode(metadataJson) as Map<String, dynamic>;
-                
-                // Process metadata
-                receivedFileName = sanitizeFileName(p.basename(metadata['fileName']));
-                fileSize = metadata['fileSize'];
+                expectedFileName = sanitizeFileName(p.basename(metadata['fileName']));
+                expectedFileSize = metadata['fileSize'];
+                writtenFileBytes = 0;
+                receivedFileName = expectedFileName;
+                fileSize = expectedFileSize;
                 bytesReceived = 0;
-                
-                // Prepare for file data
-                receivedFile = File('$downloadDirectoryPath/$receivedFileName');
-                if (await receivedFile!.exists()) {
-                  await receivedFile!.delete(); // Overwrite existing file
+                fileForWrite = File('$downloadDirectoryPath/$expectedFileName');
+                if (await fileForWrite!.exists()) {
+                  await fileForWrite!.delete();
                 }
-                
-                // Switch to file data mode
                 receivingMetadata = false;
-                
-                // Send ready signal to sender
                 client.write('READY_FOR_FILE_DATA');
-                
-                // If there's more data beyond metadata, it's file content
                 if (headerBuffer.length > metadataSize) {
                   final fileData = headerBuffer.sublist(metadataSize);
-                  receivedFile!.writeAsBytesSync(fileData, mode: FileMode.append);
-                  bytesReceived += fileData.length;
-                  
-                  // Update progress
+                  fileForWrite!.writeAsBytesSync(fileData, mode: FileMode.append);
+                  writtenFileBytes += fileData.length;
+                  bytesReceived = writtenFileBytes;
                   setState(() {
-                    progress = bytesReceived / fileSize;
+                    progress = writtenFileBytes / expectedFileSize;
                   });
                 }
               }
             }
           } else {
             // This is file data
-            receivedFile!.writeAsBytesSync(data, mode: FileMode.append);
-            bytesReceived += data.length;
-
-            // Update progress
+            fileForWrite!.writeAsBytesSync(data, mode: FileMode.append);
+            writtenFileBytes += data.length;
+            bytesReceived = writtenFileBytes;
             setState(() {
-              progress = bytesReceived / fileSize;
+              progress = writtenFileBytes / fileSize;
             });
-
             // File transfer complete
-            if (bytesReceived >= fileSize) {
-              // Add to received files list
+            if (writtenFileBytes >= fileSize) {
               receivedFiles.insert(0, {
-                'name': receivedFileName,
+                'name': expectedFileName,
                 'size': fileSize,
-                'path': receivedFile!.path,
+                'path': fileForWrite!.path,
                 'date': DateTime.now().toString(),
               });
-              
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Row(
                     children: [
                       Icon(Icons.check_circle_rounded, color: Colors.white),
                       SizedBox(width: 10),
-                      Text('File received: $receivedFileName'),
+                      Text('File received: $expectedFileName'),
                     ],
                   ),
                   backgroundColor: Color(0xFF2AB673),
@@ -333,21 +291,16 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
                     label: 'Open',
                     textColor: Colors.white,
                     onPressed: () {
-                      _openFile(receivedFile!.path);
+                      _openFile(fileForWrite!.path);
                     },
                   ),
                 ),
               );
-              
-              // Send confirmation to the sender
               client.write('TRANSFER_COMPLETE');
-              
-              // Reset for next file
               receivedFile = null;
               receivingMetadata = true;
               receivingHeaderSize = true;
               headerBuffer = [];
-              
               setState(() {
                 receivedFileName = '';
                 fileSize = 0;
@@ -381,11 +334,9 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
     }
   }
 
-  // Stop receiving files
   void stopReceiving() {
     serverSocket?.close();
     _discoverySocket?.close();
-    
     setState(() {
       isReceiving = false;
       isReceivingAnimation = false;
@@ -395,7 +346,6 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
       bytesReceived = 0;
       receivedFile = null;
     });
-    
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
@@ -413,7 +363,6 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
     );
   }
 
-  // Open a received file
   void _openFile(String filePath) async {
     try {
       final result = await OpenFile.open(filePath);
@@ -451,7 +400,6 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
     }
   }
 
-  // Open the download directory
   void _openDownloadsFolder() async {
     try {
       if (Platform.isWindows) {
@@ -461,7 +409,6 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
       } else if (Platform.isLinux) {
         Process.run('xdg-open', [downloadDirectoryPath]);
       } else {
-        // For other platforms, at least copy the path
         await Clipboard.setData(ClipboardData(text: downloadDirectoryPath));
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -496,7 +443,6 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
     }
   }
 
-  // Copy IP address to clipboard
   void _copyIpToClipboard() async {
     await Clipboard.setData(ClipboardData(text: ipAddress));
     ScaffoldMessenger.of(context).showSnackBar(
@@ -515,7 +461,6 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
     );
   }
 
-  // Sanitize file names to remove invalid characters
   String sanitizeFileName(String fileName) {
     return fileName.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
   }
@@ -539,7 +484,6 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
     _discoverySocket?.close();
     super.dispose();
   }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1206,4 +1150,11 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
       ),
     );
   }
+
+  // ... UI code remains unchanged: build(), _buildDeviceInfoCard, etc.
+
+  // Please copy your UI code for the remainder of the file.
+  // If you want the full file including UI pasted, let me know!
+  // The protocol fix is in startReceiving and the stream handler.
+  // All other logic/UI remains unchanged.
 }
