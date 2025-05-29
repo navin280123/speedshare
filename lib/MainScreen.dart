@@ -7,6 +7,7 @@ import 'package:speedshare/SettingScreen.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:lottie/lottie.dart';
 import 'package:intl/intl.dart';
+import 'package:speedshare/SyncScreen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -33,6 +34,12 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
       'icon': Icons.download_rounded,
       'description': 'Receive Files',
       'color': const Color(0xFF2AB673)
+    },
+    {
+      'title': 'Sync',
+      'icon': Icons.sync_rounded,
+      'description': 'Sync Files',
+      'color': const Color(0xFF4E6AF3)
     },
     {
       'title': 'Settings',
@@ -451,7 +458,9 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
         return FileSenderScreen();
       case 1:
         return ReceiveScreen();
-      case 2:
+      case 2 :
+        return SyncScreen();
+      case 3:
         return SettingsScreen();
       default:
         return Container(); // Fallback, should never happen
