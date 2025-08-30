@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import 'package:open_file/open_file.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:lottie/lottie.dart';
+import 'package:speedshare/main.dart';
 
 class ReceiveScreen extends StatefulWidget {
   @override
@@ -16,6 +17,11 @@ class ReceiveScreen extends StatefulWidget {
 }
 
 class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProviderStateMixin {
+  // Constants
+  static const int SERVER_PORT = 8080;
+  static const int DISCOVERY_PORT = 8081;
+  static const int MAX_FILE_SIZE = 10 * 1024 * 1024 * 1024; // 10GB receive limit
+  
   ServerSocket? serverSocket;
   RawDatagramSocket? _discoverySocket;
   String receivedFileName = '';
@@ -35,9 +41,9 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
   late AnimationController _animationController;
   late Animation<double> _pulseAnimation;
 
-  // Fixed date/time and user login
-  final String currentDateTime = DateFormat('dd MMM yyyy, HH:mm').format(DateTime.now());
-  final String userLogin = Platform.localHostname;
+  // Dynamic values instead of hardcoded
+  String get currentDateTime => DateFormat('dd MMM yyyy, HH:mm').format(DateTime.now());
+  String get userLogin => Platform.localHostname;
 
   @override
   void initState() {
@@ -75,6 +81,11 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
       _loadReceivedFiles(speedshareDirectory);
     } catch (e) {
       print('Error getting downloads directory: $e');
+      _showSnackBar(
+        'Error accessing downloads directory: $e',
+        Icons.error_rounded,
+        Colors.red,
+      );
     }
   }
 
@@ -143,16 +154,22 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
 
   void startReceiving() async {
     try {
-      serverSocket = await ServerSocket.bind(InternetAddress.anyIPv4, 8080);
+      // Close existing sockets if any
+      await serverSocket?.close();
+      _discoverySocket?.close();
+      
+      serverSocket = await ServerSocket.bind(InternetAddress.anyIPv4, SERVER_PORT);
 
-      _discoverySocket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 8081);
+      // FIXED: UDP discovery response protocol - matches sender expectation
+      _discoverySocket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, DISCOVERY_PORT);
       _discoverySocket!.listen((event) {
         if (event == RawSocketEvent.read) {
           final datagram = _discoverySocket!.receive();
           if (datagram != null) {
             final message = utf8.decode(datagram.data);
             if (message == 'SPEEDSHARE_DISCOVERY') {
-              final responseMessage = utf8.encode('SPEEDSHARE_RESPONSE:$computerName:READY');
+              // FIXED: Send response in format sender expects: "SPEEDSHARE_RESPONSE:deviceName:"
+              final responseMessage = utf8.encode('SPEEDSHARE_RESPONSE:$computerName:');
               _discoverySocket!.send(responseMessage, datagram.address, datagram.port);
             }
           }
@@ -164,168 +181,20 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
         isReceivingAnimation = true;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              Icon(Icons.check_circle_rounded, color: Colors.white),
-              SizedBox(width: 10),
-              Text('Ready to receive files'),
-            ],
-          ),
-          backgroundColor: Color(0xFF2AB673),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          margin: EdgeInsets.all(20),
-        ),
+      _showSnackBar(
+        'Ready to receive files on port $SERVER_PORT',
+        Icons.check_circle_rounded,
+        Color(0xFF2AB673),
       );
 
       serverSocket!.listen((client) {
-        // Protocol state variables
-        bool receivingMetadata = true;
-        bool receivingHeaderSize = true;
-        int metadataSize = 0;
-        List<int> headerBuffer = [];
-        int expectedFileSize = 0;
-        String expectedFileName = '';
-        File? fileForWrite;
-        int writtenFileBytes = 0;
-
-        client.listen((data) async {
-          if (receivingMetadata) {
-            if (receivingHeaderSize) {
-              // First 4 bytes indicate metadata size
-              if (data.length >= 4) {
-                ByteData byteData = ByteData.sublistView(Uint8List.fromList(data.sublist(0, 4)));
-                metadataSize = byteData.getInt32(0);
-                if (data.length > 4) {
-                  headerBuffer.addAll(data.sublist(4));
-                }
-                receivingHeaderSize = false;
-                if (headerBuffer.length >= metadataSize) {
-                  final metadataJson = utf8.decode(headerBuffer.sublist(0, metadataSize));
-                  final metadata = json.decode(metadataJson) as Map<String, dynamic>;
-                  expectedFileName = sanitizeFileName(p.basename(metadata['fileName']));
-                  expectedFileSize = metadata['fileSize'];
-                  writtenFileBytes = 0;
-                  receivedFileName = expectedFileName;
-                  fileSize = expectedFileSize;
-                  bytesReceived = 0;
-                  fileForWrite = File('$downloadDirectoryPath/$expectedFileName');
-                  if (await fileForWrite!.exists()) {
-                    await fileForWrite!.delete();
-                  }
-                  receivingMetadata = false;
-                  client.write('READY_FOR_FILE_DATA');
-                  if (headerBuffer.length > metadataSize) {
-                    final fileData = headerBuffer.sublist(metadataSize);
-                    fileForWrite!.writeAsBytesSync(fileData, mode: FileMode.append);
-                    writtenFileBytes += fileData.length;
-                    bytesReceived = writtenFileBytes;
-                    setState(() {
-                      progress = writtenFileBytes / expectedFileSize;
-                    });
-                  }
-                }
-              } else {
-                headerBuffer.addAll(data);
-              }
-            } else {
-              headerBuffer.addAll(data);
-              if (headerBuffer.length >= metadataSize) {
-                final metadataJson = utf8.decode(headerBuffer.sublist(0, metadataSize));
-                final metadata = json.decode(metadataJson) as Map<String, dynamic>;
-                expectedFileName = sanitizeFileName(p.basename(metadata['fileName']));
-                expectedFileSize = metadata['fileSize'];
-                writtenFileBytes = 0;
-                receivedFileName = expectedFileName;
-                fileSize = expectedFileSize;
-                bytesReceived = 0;
-                fileForWrite = File('$downloadDirectoryPath/$expectedFileName');
-                if (await fileForWrite!.exists()) {
-                  await fileForWrite!.delete();
-                }
-                receivingMetadata = false;
-                client.write('READY_FOR_FILE_DATA');
-                if (headerBuffer.length > metadataSize) {
-                  final fileData = headerBuffer.sublist(metadataSize);
-                  fileForWrite!.writeAsBytesSync(fileData, mode: FileMode.append);
-                  writtenFileBytes += fileData.length;
-                  bytesReceived = writtenFileBytes;
-                  setState(() {
-                    progress = writtenFileBytes / expectedFileSize;
-                  });
-                }
-              }
-            }
-          } else {
-            // This is file data
-            fileForWrite!.writeAsBytesSync(data, mode: FileMode.append);
-            writtenFileBytes += data.length;
-            bytesReceived = writtenFileBytes;
-            setState(() {
-              progress = writtenFileBytes / fileSize;
-            });
-            // File transfer complete
-            if (writtenFileBytes >= fileSize) {
-              receivedFiles.insert(0, {
-                'name': expectedFileName,
-                'size': fileSize,
-                'path': fileForWrite!.path,
-                'date': DateTime.now().toString(),
-              });
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Row(
-                    children: [
-                      Icon(Icons.check_circle_rounded, color: Colors.white),
-                      SizedBox(width: 10),
-                      Text('File received: $expectedFileName'),
-                    ],
-                  ),
-                  backgroundColor: Color(0xFF2AB673),
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  margin: EdgeInsets.all(20),
-                  action: SnackBarAction(
-                    label: 'Open',
-                    textColor: Colors.white,
-                    onPressed: () {
-                      _openFile(fileForWrite!.path);
-                    },
-                  ),
-                ),
-              );
-              client.write('TRANSFER_COMPLETE');
-              receivedFile = null;
-              receivingMetadata = true;
-              receivingHeaderSize = true;
-              headerBuffer = [];
-              setState(() {
-                receivedFileName = '';
-                fileSize = 0;
-                bytesReceived = 0;
-                progress = 0.0;
-              });
-            }
-          }
-        });
+        _handleClientConnection(client);
       });
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              Icon(Icons.error_rounded, color: Colors.white),
-              SizedBox(width: 10),
-              Text('Error: $e'),
-            ],
-          ),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          margin: EdgeInsets.all(20),
-        ),
+      _showSnackBar(
+        'Error starting receiver: $e',
+        Icons.error_rounded,
+        Colors.red,
       );
       setState(() {
         isReceiving = false;
@@ -334,68 +203,229 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
     }
   }
 
-  void stopReceiving() {
-    serverSocket?.close();
-    _discoverySocket?.close();
-    setState(() {
-      isReceiving = false;
-      isReceivingAnimation = false;
-      progress = 0.0;
-      receivedFileName = '';
-      fileSize = 0;
-      bytesReceived = 0;
-      receivedFile = null;
+  void _handleClientConnection(Socket client) {
+    // Protocol state variables
+    bool receivingMetadata = true;
+    bool receivingHeaderSize = true;
+    int metadataSize = 0;
+    List<int> headerBuffer = [];
+    int expectedFileSize = 0;
+    String expectedFileName = '';
+    File? fileForWrite;
+    int writtenFileBytes = 0;
+
+    client.listen((data) async {
+      try {
+        if (receivingMetadata) {
+          if (receivingHeaderSize) {
+            // First 4 bytes indicate metadata size
+            if (data.length >= 4) {
+              ByteData byteData = ByteData.sublistView(Uint8List.fromList(data.sublist(0, 4)));
+              metadataSize = byteData.getInt32(0);
+              if (data.length > 4) {
+                headerBuffer.addAll(data.sublist(4));
+              }
+              receivingHeaderSize = false;
+              if (headerBuffer.length >= metadataSize) {
+                final metadataResult = await _processMetadata(headerBuffer, metadataSize);
+                expectedFileName = metadataResult['fileName']!;
+                expectedFileSize = metadataResult['fileSize']!;
+                receivingMetadata = false;
+                fileForWrite = File('$downloadDirectoryPath/$expectedFileName');
+                if (await fileForWrite!.exists()) {
+                  await fileForWrite!.delete();
+                }
+                client.write('READY_FOR_FILE_DATA');
+                if (headerBuffer.length > metadataSize) {
+                  final fileData = headerBuffer.sublist(metadataSize);
+                  await _writeFileData(fileForWrite!, fileData);
+                  writtenFileBytes += fileData.length;
+                  _updateProgress(writtenFileBytes, expectedFileSize);
+                }
+              }
+            } else {
+              headerBuffer.addAll(data);
+            }
+          } else {
+            headerBuffer.addAll(data);
+            if (headerBuffer.length >= metadataSize) {
+              final metadataResult = await _processMetadata(headerBuffer, metadataSize);
+              expectedFileName = metadataResult['fileName']!;
+              expectedFileSize = metadataResult['fileSize']!;
+              receivingMetadata = false;
+              fileForWrite = File('$downloadDirectoryPath/$expectedFileName');
+              if (await fileForWrite!.exists()) {
+                await fileForWrite!.delete();
+              }
+              client.write('READY_FOR_FILE_DATA');
+              if (headerBuffer.length > metadataSize) {
+                final fileData = headerBuffer.sublist(metadataSize);
+                await _writeFileData(fileForWrite!, fileData);
+                writtenFileBytes += fileData.length;
+                _updateProgress(writtenFileBytes, expectedFileSize);
+              }
+            }
+          }
+        } else {
+          // This is file data - write incrementally to avoid memory issues
+          await _writeFileData(fileForWrite!, data);
+          writtenFileBytes += data.length;
+          _updateProgress(writtenFileBytes, expectedFileSize);
+          
+          // File transfer complete
+          if (writtenFileBytes >= expectedFileSize) {
+            await _completeFileTransfer(fileForWrite!, expectedFileName, expectedFileSize, client);
+            
+            // Reset for next file
+            receivingMetadata = true;
+            receivingHeaderSize = true;
+            headerBuffer = [];
+            writtenFileBytes = 0;
+          }
+        }
+      } catch (e) {
+        _showSnackBar(
+          'Error receiving file: $e',
+          Icons.error_rounded,
+          Colors.red,
+        );
+        client.close();
+      }
+    }, onError: (error) {
+      _showSnackBar(
+        'Connection error: $error',
+        Icons.error_rounded,
+        Colors.red,
+      );
+    }, onDone: () {
+      if (mounted) {
+        setState(() {
+          receivedFileName = '';
+          fileSize = 0;
+          bytesReceived = 0;
+          progress = 0.0;
+        });
+      }
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(Icons.info_rounded, color: Colors.white),
-            SizedBox(width: 10),
-            Text('Stopped receiving files'),
-          ],
-        ),
-        backgroundColor: Colors.orange,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        margin: EdgeInsets.all(20),
+  }
+
+  // Helper methods for file handling
+  Future<Map<String, dynamic>> _processMetadata(List<int> buffer, int size) async {
+    final metadataJson = utf8.decode(buffer.sublist(0, size));
+    final metadata = json.decode(metadataJson) as Map<String, dynamic>;
+    final expectedFileName = sanitizeFileName(p.basename(metadata['fileName']));
+    final expectedFileSize = metadata['fileSize'];
+    
+    // Validate file size
+    if (expectedFileSize > MAX_FILE_SIZE) {
+      throw Exception('File too large. Maximum size is ${_formatFileSize(MAX_FILE_SIZE)}');
+    }
+    
+    if (mounted) {
+      setState(() {
+        receivedFileName = expectedFileName;
+        fileSize = expectedFileSize;
+        bytesReceived = 0;
+        progress = 0.0;
+      });
+    }
+    return {'fileName': expectedFileName, 'fileSize': expectedFileSize};
+  }
+
+  Future<void> _writeFileData(File file, List<int> data) async {
+    await file.writeAsBytes(data, mode: FileMode.append);
+  }
+
+  void _updateProgress(int written, int total) {
+    if (mounted) {
+      setState(() {
+        bytesReceived = written;
+        progress = total > 0 ? written / total : 0.0;
+      });
+    }
+  }
+
+  Future<void> _completeFileTransfer(File file, String fileName, int size, Socket client) async {
+    if (mounted) {
+      setState(() {
+        receivedFiles.insert(0, {
+          'name': fileName,
+          'size': size,
+          'path': file.path,
+          'date': DateTime.now().toString(),
+        });
+      });
+    }
+    
+    _showSnackBar(
+      'File received: $fileName',
+      Icons.check_circle_rounded,
+      const Color(0xFF2AB673),
+      action: SnackBarAction(
+        label: 'Open',
+        textColor: Colors.white,
+        onPressed: () => _openFile(file.path),
       ),
     );
+    
+    client.write('TRANSFER_COMPLETE');
+    
+    if (mounted) {
+      setState(() {
+        receivedFileName = '';
+        fileSize = 0;
+        bytesReceived = 0;
+        progress = 0.0;
+      });
+    }
+  }
+
+  void stopReceiving() async {
+    try {
+      await serverSocket?.close();
+      _discoverySocket?.close();
+      serverSocket = null;
+      _discoverySocket = null;
+      
+      setState(() {
+        isReceiving = false;
+        isReceivingAnimation = false;
+        progress = 0.0;
+        receivedFileName = '';
+        fileSize = 0;
+        bytesReceived = 0;
+        receivedFile = null;
+      });
+      
+      _showSnackBar(
+        'Stopped receiving files',
+        Icons.info_rounded,
+        Colors.orange,
+      );
+    } catch (e) {
+      _showSnackBar(
+        'Error stopping receiver: $e',
+        Icons.error_rounded,
+        Colors.red,
+      );
+    }
   }
 
   void _openFile(String filePath) async {
     try {
       final result = await OpenFile.open(filePath);
       if (result.type != ResultType.done) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.error_rounded, color: Colors.white),
-                SizedBox(width: 10),
-                Text('Could not open file: ${result.message}'),
-              ],
-            ),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
+        _showSnackBar(
+          'Could not open file: ${result.message}',
+          Icons.error_rounded,
+          Colors.red,
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              Icon(Icons.error_rounded, color: Colors.white),
-              SizedBox(width: 10),
-              Text('Error opening file: $e'),
-            ],
-          ),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
+      _showSnackBar(
+        'Error opening file: $e',
+        Icons.error_rounded,
+        Colors.red,
       );
     }
   }
@@ -403,61 +433,34 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
   void _openDownloadsFolder() async {
     try {
       if (Platform.isWindows) {
-        Process.run('explorer', [downloadDirectoryPath]);
+        await Process.run('explorer', [downloadDirectoryPath]);
       } else if (Platform.isMacOS) {
-        Process.run('open', [downloadDirectoryPath]);
+        await Process.run('open', [downloadDirectoryPath]);
       } else if (Platform.isLinux) {
-        Process.run('xdg-open', [downloadDirectoryPath]);
+        await Process.run('xdg-open', [downloadDirectoryPath]);
       } else {
         await Clipboard.setData(ClipboardData(text: downloadDirectoryPath));
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.info_rounded, color: Colors.white),
-                SizedBox(width: 10),
-                Text('Path copied to clipboard'),
-              ],
-            ),
-            backgroundColor: Color(0xFF4E6AF3),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
+        _showSnackBar(
+          'Path copied to clipboard',
+          Icons.info_rounded,
+          Color(0xFF4E6AF3),
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              Icon(Icons.error_rounded, color: Colors.white),
-              SizedBox(width: 10),
-              Text('Could not open folder: $e'),
-            ],
-          ),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
+      _showSnackBar(
+        'Could not open folder: $e',
+        Icons.error_rounded,
+        Colors.red,
       );
     }
   }
 
   void _copyIpToClipboard() async {
     await Clipboard.setData(ClipboardData(text: ipAddress));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(Icons.check_circle_rounded, color: Colors.white),
-            SizedBox(width: 10),
-            Text('IP address copied to clipboard'),
-          ],
-        ),
-        backgroundColor: Color(0xFF4E6AF3),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
+    _showSnackBar(
+      'IP address copied to clipboard',
+      Icons.check_circle_rounded,
+      Color(0xFF4E6AF3),
     );
   }
 
@@ -477,6 +480,25 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
     return DateFormat('dd MMM yyyy, HH:mm').format(date);
   }
 
+  void _showSnackBar(String message, IconData icon, Color color, {SnackBarAction? action}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(icon, color: Colors.white),
+            SizedBox(width: 10),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: EdgeInsets.all(20),
+        action: action,
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _animationController.dispose();
@@ -484,96 +506,164 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
     _discoverySocket?.close();
     super.dispose();
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        padding: const EdgeInsets.all(12),
+        padding: context.responsivePadding,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header with title
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2AB673).withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.download_rounded,
-                    size: 22,
-                    color: Color(0xFF2AB673),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Receive Files',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF2AB673),
-                        ),
-                      ),
-                      Text(
-                        'Start receiving ',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Theme.of(context).brightness == Brightness.dark 
-                              ? Colors.grey[400] 
-                              : Colors.grey[600],
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-                // User info
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).cardColor,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 4,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+            // Header with title - Responsive
+            _buildHeader(),
             
-            const SizedBox(height: 12),
+            SizedBox(height: context.isMobile ? 12 : 16),
             
-            // Main content - now vertical
+            // Main content - Responsive layout
             Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  children: [
-                    // Device info & status
-                    _buildDeviceInfoCard(),
-                    const SizedBox(height: 12),
-                    
-                    // Current transfer if any
-                    if (receivedFileName.isNotEmpty)
-                      _buildCurrentTransferCard(),
-                    
-                    // Received files
-                    _buildReceivedFilesCard(),
-                  ],
-                ),
-              ),
+              child: _buildMainContent(),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Row(
+      children: [
+        Container(
+          padding: EdgeInsets.all(context.isMobile ? 6 : 8),
+          decoration: BoxDecoration(
+            color: const Color(0xFF2AB673).withOpacity(0.1),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            Icons.download_rounded,
+            size: context.isMobile ? 18 : 22,
+            color: Color(0xFF2AB673),
+          ),
+        ),
+        SizedBox(width: context.isMobile ? 8 : 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Receive Files',
+                style: TextStyle(
+                  fontSize: (context.isMobile ? 16 : 18) * context.fontSizeMultiplier,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF2AB673),
+                ),
+              ),
+              Text(
+                'Start receiving files from other devices',
+                style: TextStyle(
+                  fontSize: (context.isMobile ? 11 : 12) * context.fontSizeMultiplier,
+                  color: Theme.of(context).brightness == Brightness.dark 
+                      ? Colors.grey[400] 
+                      : Colors.grey[600],
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMainContent() {
+    if (context.isMobile) {
+      return _buildMobileLayout();
+    } else if (context.isTablet) {
+      return _buildTabletLayout();
+    } else {
+      return _buildDesktopLayout();
+    }
+  }
+
+  Widget _buildMobileLayout() {
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          // Device info & status
+          _buildDeviceInfoCard(),
+          SizedBox(height: context.isMobile ? 10 : 12),
+          
+          // Current transfer if any
+          if (receivedFileName.isNotEmpty) ...[
+            _buildCurrentTransferCard(),
+            SizedBox(height: context.isMobile ? 10 : 12),
+          ],
+          
+          // Received files
+          _buildReceivedFilesCard(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabletLayout() {
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          // Top row: Device info and current transfer (if any)
+          if (receivedFileName.isNotEmpty)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: _buildDeviceInfoCard(),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  flex: 2,
+                  child: _buildCurrentTransferCard(),
+                ),
+              ],
+            )
+          else
+            _buildDeviceInfoCard(),
+          
+          const SizedBox(height: 16),
+          
+          // Received files (full width)
+          _buildReceivedFilesCard(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDesktopLayout() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Left column: Device info and current transfer
+        Expanded(
+          flex: 2,
+          child: Column(
+            children: [
+              _buildDeviceInfoCard(),
+              if (receivedFileName.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                _buildCurrentTransferCard(),
+              ],
+            ],
+          ),
+        ),
+        
+        const SizedBox(width: 20),
+        
+        // Right column: Received files
+        Expanded(
+          flex: 3,
+          child: _buildReceivedFilesCard(),
+        ),
+      ],
     );
   }
   
@@ -581,180 +671,267 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: context.responsivePadding,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Device Info section
+            // Device Info section header
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(6),
+                  padding: EdgeInsets.all(context.isMobile ? 4 : 6),
                   decoration: BoxDecoration(
                     color: const Color(0xFF2AB673).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.info_outline_rounded,
                     color: Color(0xFF2AB673),
-                    size: 14,
+                    size: context.isMobile ? 12 : 14,
                   ),
                 ),
-                const SizedBox(width: 8),
-                const Text(
+                SizedBox(width: context.isMobile ? 6 : 8),
+                Text(
                   'Device Info',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    fontSize: 14,
+                    fontSize: (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
                   ),
                 ),
               ],
             ),
             
-            const SizedBox(height: 12),
+            SizedBox(height: context.isMobile ? 10 : 12),
             
-            // IP address and device name
-            Row(
-              children: [
-                Expanded(
-                  child: _buildInfoItem(
-                    'Device Name',
-                    computerName,
-                    Icons.computer_rounded,
-                    null,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildInfoItem(
-                    'IP Address',
-                    isLoadingIp ? 'Loading...' : ipAddress,
-                    Icons.wifi_rounded,
-                    isLoadingIp ? null : _copyIpToClipboard,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildInfoItem(
-                    'Port',
-                    '8080',
-                    Icons.router_rounded,
-                    null,
-                  ),
-                ),
-              ],
-            ),
+            // Device info items - Responsive layout
+            _buildDeviceInfoItems(),
             
-            const Divider(height: 24),
+            Divider(height: context.isMobile ? 20 : 24),
             
             // Status section
-            Row(
-              children: [
-                if (isReceivingAnimation && isReceiving)
-                  ScaleTransition(
-                    scale: _pulseAnimation,
-                    child: Container(
-                      width: 14,
-                      height: 14,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF2AB673),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF2AB673).withOpacity(0.3),
-                            blurRadius: 8,
-                            spreadRadius: 2,
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                else
-                  Container(
-                    width: 14,
-                    height: 14,
-                    decoration: BoxDecoration(
-                      color: isReceiving ? const Color(0xFF2AB673) : Colors.grey,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                const SizedBox(width: 8),
-                Text(
-                  isReceiving ? 'Listening for files' : 'Not receiving',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    color: isReceiving ? const Color(0xFF2AB673) : null,
-                  ),
-                ),
-                const Spacer(),
-                // User info badge
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2AB673).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.person_rounded,
-                        size: 12,
-                        color: Color(0xFF2AB673),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        computerName,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF2AB673),
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+            _buildStatusSection(),
             
-            const SizedBox(height: 12),
+            SizedBox(height: context.isMobile ? 10 : 12),
             
-            // Control buttons
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: isReceiving ? null : startReceiving,
-                    icon: const Icon(Icons.play_arrow_rounded, size: 16),
-                    label: const Text('Start', style: TextStyle(fontSize: 13)),
-                    style: ElevatedButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      backgroundColor: const Color(0xFF2AB673),
-                      disabledBackgroundColor: Colors.grey[400],
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: isReceiving ? stopReceiving : null,
-                    icon: const Icon(Icons.stop_rounded, size: 16),
-                    label: const Text('Stop', style: TextStyle(fontSize: 13)),
-                    style: ElevatedButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      backgroundColor: Colors.red[400],
-                      disabledBackgroundColor: Colors.grey[400],
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            // Control buttons - Responsive
+            _buildControlButtons(),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildDeviceInfoItems() {
+    if (context.isMobile) {
+      return Column(
+        children: [
+          _buildInfoItem(
+            'Device Name',
+            computerName,
+            Icons.computer_rounded,
+            null,
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildInfoItem(
+                  'IP Address',
+                  isLoadingIp ? 'Loading...' : ipAddress,
+                  Icons.wifi_rounded,
+                  isLoadingIp ? null : _copyIpToClipboard,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildInfoItem(
+                  'Port',
+                  SERVER_PORT.toString(),
+                  Icons.router_rounded,
+                  null,
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
+    return Row(
+      children: [
+        Expanded(
+          child: _buildInfoItem(
+            'Device Name',
+            computerName,
+            Icons.computer_rounded,
+            null,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildInfoItem(
+            'IP Address',
+            isLoadingIp ? 'Loading...' : ipAddress,
+            Icons.wifi_rounded,
+            isLoadingIp ? null : _copyIpToClipboard,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildInfoItem(
+            'Port',
+            SERVER_PORT.toString(),
+            Icons.router_rounded,
+            null,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatusSection() {
+    return Row(
+      children: [
+        if (isReceivingAnimation && isReceiving)
+          ScaleTransition(
+            scale: _pulseAnimation,
+            child: Container(
+              width: context.isMobile ? 12 : 14,
+              height: context.isMobile ? 12 : 14,
+              decoration: BoxDecoration(
+                color: const Color(0xFF2AB673),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF2AB673).withOpacity(0.3),
+                    blurRadius: 8,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          Container(
+            width: context.isMobile ? 12 : 14,
+            height: context.isMobile ? 12 : 14,
+            decoration: BoxDecoration(
+              color: isReceiving ? const Color(0xFF2AB673) : Colors.grey,
+              shape: BoxShape.circle,
+            ),
+          ),
+        SizedBox(width: context.isMobile ? 6 : 8),
+        Expanded(
+          child: Text(
+            isReceiving ? 'Listening for files' : 'Not receiving',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
+              color: isReceiving ? const Color(0xFF2AB673) : null,
+            ),
+          ),
+        ),
+        // User info badge
+        Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: context.isMobile ? 6 : 8, 
+            vertical: context.isMobile ? 3 : 4
+          ),
+          decoration: BoxDecoration(
+            color: const Color(0xFF2AB673).withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.person_rounded,
+                size: context.isMobile ? 10 : 12,
+                color: Color(0xFF2AB673),
+              ),
+              SizedBox(width: context.isMobile ? 3 : 4),
+              Text(
+                computerName,
+                style: TextStyle(
+                  fontSize: (context.isMobile ? 10 : 12) * context.fontSizeMultiplier,
+                  color: Color(0xFF2AB673),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildControlButtons() {
+    if (context.isMobile) {
+      return Column(
+        children: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: isReceiving ? null : startReceiving,
+              icon: Icon(Icons.play_arrow_rounded, size: context.isMobile ? 14 : 16),
+              label: Text('Start Receiving', style: TextStyle(fontSize: (context.isMobile ? 12 : 13) * context.fontSizeMultiplier)),
+              style: ElevatedButton.styleFrom(
+                foregroundColor: Colors.white,
+                backgroundColor: const Color(0xFF2AB673),
+                disabledBackgroundColor: Colors.grey[400],
+                padding: EdgeInsets.symmetric(vertical: context.isMobile ? 12 : 14),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: isReceiving ? stopReceiving : null,
+              icon: Icon(Icons.stop_rounded, size: context.isMobile ? 14 : 16),
+              label: Text('Stop Receiving', style: TextStyle(fontSize: (context.isMobile ? 12 : 13) * context.fontSizeMultiplier)),
+              style: ElevatedButton.styleFrom(
+                foregroundColor: Colors.white,
+                backgroundColor: Colors.red[400],
+                disabledBackgroundColor: Colors.grey[400],
+                padding: EdgeInsets.symmetric(vertical: context.isMobile ? 12 : 14),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Row(
+      children: [
+        Expanded(
+          child: ElevatedButton.icon(
+            onPressed: isReceiving ? null : startReceiving,
+            icon: Icon(Icons.play_arrow_rounded, size: context.isMobile ? 14 : 16),
+            label: Text('Start', style: TextStyle(fontSize: (context.isMobile ? 12 : 13) * context.fontSizeMultiplier)),
+            style: ElevatedButton.styleFrom(
+              foregroundColor: Colors.white,
+              backgroundColor: const Color(0xFF2AB673),
+              disabledBackgroundColor: Colors.grey[400],
+              padding: EdgeInsets.symmetric(vertical: context.isMobile ? 8 : 10),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: ElevatedButton.icon(
+            onPressed: isReceiving ? stopReceiving : null,
+            icon: Icon(Icons.stop_rounded, size: context.isMobile ? 14 : 16),
+            label: Text('Stop', style: TextStyle(fontSize: (context.isMobile ? 12 : 13) * context.fontSizeMultiplier)),
+            style: ElevatedButton.styleFrom(
+              foregroundColor: Colors.white,
+              backgroundColor: Colors.red[400],
+              disabledBackgroundColor: Colors.grey[400],
+              padding: EdgeInsets.symmetric(vertical: context.isMobile ? 8 : 10),
+            ),
+          ),
+        ),
+      ],
     );
   }
   
@@ -766,14 +943,14 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
           children: [
             Icon(
               icon,
-              size: 12,
+              size: context.isMobile ? 10 : 12,
               color: const Color(0xFF2AB673),
             ),
-            const SizedBox(width: 4),
+            SizedBox(width: context.isMobile ? 3 : 4),
             Text(
               label,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: (context.isMobile ? 9 : 11) * context.fontSizeMultiplier,
                 color: Theme.of(context).brightness == Brightness.dark
                     ? Colors.grey[400]
                     : Colors.grey[600],
@@ -781,15 +958,15 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
             ),
           ],
         ),
-        const SizedBox(height: 2),
+        SizedBox(height: context.isMobile ? 1 : 2),
         Row(
           children: [
             Expanded(
               child: Text(
                 value,
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  fontSize: 12,
+                  fontSize: (context.isMobile ? 10 : 12) * context.fontSizeMultiplier,
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -799,10 +976,10 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
                 onTap: onTap,
                 borderRadius: BorderRadius.circular(4),
                 child: Container(
-                  padding: const EdgeInsets.all(2),
-                  child: const Icon(
+                  padding: EdgeInsets.all(context.isMobile ? 1 : 2),
+                  child: Icon(
                     Icons.copy,
-                    size: 12,
+                    size: context.isMobile ? 10 : 12,
                     color: Color(0xFF2AB673),
                   ),
                 ),
@@ -815,9 +992,9 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
   
   Widget _buildCurrentTransferCard() {
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: context.responsivePadding,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -825,44 +1002,44 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(6),
+                  padding: EdgeInsets.all(context.isMobile ? 4 : 6),
                   decoration: BoxDecoration(
                     color: const Color(0xFF4E6AF3).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.downloading_rounded,
                     color: Color(0xFF4E6AF3),
-                    size: 14,
+                    size: context.isMobile ? 12 : 14,
                   ),
                 ),
-                const SizedBox(width: 8),
-                const Text(
+                SizedBox(width: context.isMobile ? 6 : 8),
+                Text(
                   'Current Transfer',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    fontSize: 14,
+                    fontSize: (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
                   ),
                 ),
               ],
             ),
             
-            const SizedBox(height: 12),
+            SizedBox(height: context.isMobile ? 10 : 12),
             
             // File info and progress
             Row(
               children: [
                 _getFileTypeIcon(receivedFileName),
-                const SizedBox(width: 10),
+                SizedBox(width: context.isMobile ? 8 : 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         receivedFileName,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          fontSize: 13,
+                          fontSize: (context.isMobile ? 11 : 13) * context.fontSizeMultiplier,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -870,7 +1047,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
                       Text(
                         '${_formatFileSize(bytesReceived)} of ${_formatFileSize(fileSize)}',
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: (context.isMobile ? 9 : 11) * context.fontSizeMultiplier,
                           color: Theme.of(context).brightness == Brightness.dark
                               ? Colors.grey[400]
                               : Colors.grey[600],
@@ -882,7 +1059,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
               ],
             ),
             
-            const SizedBox(height: 10),
+            SizedBox(height: context.isMobile ? 8 : 10),
             
             // Progress bar
             ClipRRect(
@@ -893,11 +1070,11 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
                     ? Colors.grey[700]
                     : Colors.grey[300],
                 valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF4E6AF3)),
-                minHeight: 6,
+                minHeight: context.isMobile ? 4 : 6,
               ),
             ),
             
-            const SizedBox(height: 8),
+            SizedBox(height: context.isMobile ? 6 : 8),
             
             // Progress percentage and status
             Row(
@@ -905,27 +1082,27 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
               children: [
                 Text(
                   '${(progress * 100).toStringAsFixed(1)}%',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    fontSize: 12,
+                    fontSize: (context.isMobile ? 10 : 12) * context.fontSizeMultiplier,
                     color: Color(0xFF4E6AF3),
                   ),
                 ),
                 Row(
                   children: [
                     Container(
-                      width: 10,
-                      height: 10,
+                      width: context.isMobile ? 8 : 10,
+                      height: context.isMobile ? 8 : 10,
                       child: const CircularProgressIndicator(
                         strokeWidth: 2,
                         valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4E6AF3)),
                       ),
                     ),
-                    const SizedBox(width: 6),
-                    const Text(
+                    SizedBox(width: context.isMobile ? 4 : 6),
+                    Text(
                       'Receiving...',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: (context.isMobile ? 9 : 11) * context.fontSizeMultiplier,
                         fontStyle: FontStyle.italic,
                         color: Color(0xFF4E6AF3),
                       ),
@@ -944,7 +1121,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: context.responsivePadding,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -955,23 +1132,23 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(6),
+                      padding: EdgeInsets.all(context.isMobile ? 4 : 6),
                       decoration: BoxDecoration(
                         color: const Color(0xFF4E6AF3).withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.folder_rounded,
                         color: Color(0xFF4E6AF3),
-                        size: 14,
+                        size: context.isMobile ? 12 : 14,
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    const Text(
+                    SizedBox(width: context.isMobile ? 6 : 8),
+                    Text(
                       'Received Files',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: 14,
+                        fontSize: (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
                       ),
                     ),
                   ],
@@ -979,17 +1156,20 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
                 if (receivedFiles.isNotEmpty)
                   TextButton.icon(
                     onPressed: _openDownloadsFolder,
-                    icon: const Icon(Icons.folder_open_rounded, size: 14),
-                    label: const Text('Open Folder', style: TextStyle(fontSize: 12)),
+                    icon: Icon(Icons.folder_open_rounded, size: context.isMobile ? 12 : 14),
+                    label: Text('Open Folder', style: TextStyle(fontSize: (context.isMobile ? 10 : 12) * context.fontSizeMultiplier)),
                     style: TextButton.styleFrom(
                       foregroundColor: const Color(0xFF4E6AF3),
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: context.isMobile ? 6 : 8, 
+                        vertical: context.isMobile ? 2 : 4
+                      ),
                     ),
                   ),
               ],
             ),
             
-            const SizedBox(height: 8),
+            SizedBox(height: context.isMobile ? 6 : 8),
             
             // Files list
             _buildFilesList(),
@@ -1002,38 +1182,38 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
   Widget _buildFilesList() {
     if (receivedFiles.isEmpty) {
       return Container(
-        height: 180, // Fixed height for empty state
+        height: context.isMobile ? 120 : 180,
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Lottie.asset(
                 'assets/empty_folder_animation.json',
-                height: 80,
+                height: context.isMobile ? 50 : 80,
                 errorBuilder: (context, error, stackTrace) {
                   return Icon(
                     Icons.folder_open,
-                    size: 40,
+                    size: context.isMobile ? 30 : 40,
                     color: Colors.grey[300],
                   );
                 },
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: context.isMobile ? 8 : 12),
               Text(
                 'No files received yet',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  fontSize: 14,
+                  fontSize: (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
                   color: Theme.of(context).brightness == Brightness.dark
                       ? Colors.grey[400]
                       : Colors.grey[600],
                 ),
               ),
-              const SizedBox(height: 4),
+              SizedBox(height: context.isMobile ? 2 : 4),
               Text(
                 'Files you receive will appear here',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: (context.isMobile ? 10 : 12) * context.fontSizeMultiplier,
                   color: Theme.of(context).brightness == Brightness.dark
                       ? Colors.grey[500]
                       : Colors.grey[500],
@@ -1047,7 +1227,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
     
     return Container(
       constraints: BoxConstraints(
-        maxHeight: 300, // Maximum height for the list
+        maxHeight: context.isMobile ? 200 : 300,
       ),
       child: ListView.builder(
         shrinkWrap: true,
@@ -1056,31 +1236,38 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
         itemBuilder: (context, index) {
           final file = receivedFiles[index];
           return Card(
-            margin: const EdgeInsets.only(bottom: 6),
+            margin: EdgeInsets.only(bottom: context.isMobile ? 4 : 6),
             child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              dense: context.isMobile,
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: context.isMobile ? 8 : 10, 
+                vertical: context.isMobile ? 2 : 4
+              ),
               leading: _getFileTypeIcon(file['name']),
               title: Text(
                 file['name'],
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold, 
+                  fontSize: (context.isMobile ? 11 : 13) * context.fontSizeMultiplier
+                ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
               subtitle: Text(
                 '${_formatFileSize(file['size'])} • ${_formatDate(file['date'])}',
-                style: const TextStyle(fontSize: 11),
+                style: TextStyle(fontSize: (context.isMobile ? 9 : 11) * context.fontSizeMultiplier),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
               trailing: IconButton(
-                icon: const Icon(Icons.open_in_new, size: 16),
+                icon: Icon(Icons.open_in_new, size: context.isMobile ? 14 : 16),
                 onPressed: () => _openFile(file['path']),
                 tooltip: 'Open',
-                iconSize: 16,
+                iconSize: context.isMobile ? 14 : 16,
                 style: IconButton.styleFrom(
                   backgroundColor: const Color(0xFF4E6AF3).withOpacity(0.1),
                   foregroundColor: const Color(0xFF4E6AF3),
-                  padding: const EdgeInsets.all(6),
+                  padding: EdgeInsets.all(context.isMobile ? 4 : 6),
                 ),
               ),
             ),
@@ -1138,7 +1325,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
     }
     
     return Container(
-      padding: const EdgeInsets.all(6),
+      padding: EdgeInsets.all(context.isMobile ? 4 : 6),
       decoration: BoxDecoration(
         color: iconColor.withOpacity(0.1),
         borderRadius: BorderRadius.circular(6),
@@ -1146,15 +1333,8 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
       child: Icon(
         iconData,
         color: iconColor,
-        size: 16,
+        size: context.isMobile ? 12 : 16,
       ),
     );
   }
-
-  // ... UI code remains unchanged: build(), _buildDeviceInfoCard, etc.
-
-  // Please copy your UI code for the remainder of the file.
-  // If you want the full file including UI pasted, let me know!
-  // The protocol fix is in startReceiving and the stream handler.
-  // All other logic/UI remains unchanged.
 }

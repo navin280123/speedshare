@@ -1,5 +1,4 @@
 import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:speedshare/FileSenderScreen.dart';
 import 'package:speedshare/ReceiveScreen.dart';
@@ -8,6 +7,7 @@ import 'package:animate_do/animate_do.dart';
 import 'package:lottie/lottie.dart';
 import 'package:intl/intl.dart';
 import 'package:speedshare/SyncScreen.dart';
+import 'package:speedshare/main.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -21,6 +21,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   String computerName = '';
+  bool _isDrawerOpen = false;
 
   final List<Map<String, dynamic>> _sidebarOptions = [
     {
@@ -73,9 +74,9 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
     _animationController.dispose();
     super.dispose();
   }
- void _getComputerName() async {
+
+  void _getComputerName() async {
     try {
-      // For simplicity, using hostname as computer name
       final hostname = Platform.localHostname;
       setState(() {
         computerName = hostname;
@@ -90,366 +91,391 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Row(
+      // App bar for mobile and tablet
+      appBar: ResponsiveContext(context).isMobile || ResponsiveContext(context).isTablet ? _buildAppBar() : null,
+
+      // Drawer for mobile
+      drawer: ResponsiveContext(context).isMobile ? _buildDrawer() : null,
+
+      body: _buildBody(),
+    );
+  }
+
+  AppBar? _buildAppBar() {
+    if (!ResponsiveContext(context).isMobile && !ResponsiveContext(context).isTablet) return null;
+
+    return AppBar(
+      title: Row(
         children: [
-          // Left sidebar with fixed width - narrower to prevent overflow
           Container(
-            width: 180, // Reduced from 200px
+            padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: Theme.of(context).cardColor,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                ),
-              ],
+              gradient: const LinearGradient(
+                colors: [Color(0xFF4E6AF3), Color(0xFF2AB673)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              shape: BoxShape.circle,
             ),
-            child: Column(
-                children: [
-                // Logo/Title section
-                Container(
-                  padding: const EdgeInsets.symmetric(vertical: 16), // Reduced padding
-                  child: Column(
-                  children: [
-                    Container(
-                    padding: const EdgeInsets.all(10), // Reduced padding
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                      colors: [Color(0xFF4E6AF3), Color(0xFF2AB673)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      ),
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF4E6AF3).withOpacity(0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.swap_horiz_rounded,
-                      size: 28, // Reduced size
-                      color: Colors.white,
-                    ),
-                    ),
-                    const SizedBox(height: 10),
-                    ShaderMask(
-                    shaderCallback: (bounds) => const LinearGradient(
-                      colors: [Color(0xFF4E6AF3), Color(0xFF2AB673)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ).createShader(bounds),
-                    child: const Text(
-                      'SpeedShare',
-                      style: TextStyle(
-                      fontSize: 20, // Reduced font size
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      ),
-                    ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                    'Fast File Transfers',
-                    style: TextStyle(
-                      fontSize: 11, // Reduced font size
-                      color: Theme.of(context).brightness == Brightness.dark 
-                        ? Colors.grey[400] 
-                        : Colors.grey[600],
-                    ),
-                    overflow: TextOverflow.ellipsis, // Handle text overflow
-                    ),
-                  ],
-                  ),
-                ),
-                
-                const Divider(height: 1),
-
-                // Menu options
-                Expanded(
-                  child: ListView.builder(
-                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8), // Reduced padding
-                  itemCount: _sidebarOptions.length,
-                  itemBuilder: (context, index) {
-                    final option = _sidebarOptions[index];
-                    final isSelected = _selectedIndex == index;
-
-                    return Container(
-                    margin: const EdgeInsets.only(bottom: 6), // Reduced margin
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8), // Reduced radius
-                      color: isSelected 
-                        ? option['color'].withOpacity(0.1)
-                        : Colors.transparent,
-                    ),
-                    child: ListTile(
-                      dense: true, // More compact list tile
-                      visualDensity: VisualDensity.compact, // Compact visual style
-                      contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 8, 
-                      vertical: 2
-                      ), // Reduced padding
-                      leading: Container(
-                      padding: const EdgeInsets.all(6), // Reduced padding
-                      decoration: BoxDecoration(
-                        color: isSelected 
-                          ? option['color'].withOpacity(0.2)
-                          : Theme.of(context).brightness == Brightness.dark
-                            ? Colors.grey[800]
-                            : Colors.grey[200],
-                        borderRadius: BorderRadius.circular(6), // Reduced radius
-                      ),
-                      child: Icon(
-                        option['icon'],
-                        color: isSelected ? option['color'] : Colors.grey[600],
-                        size: 16, // Reduced size
-                      ),
-                      ),
-                      title: Text(
-                      option['title'],
-                      style: TextStyle(
-                        fontSize: 13, // Reduced font size
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                        color: isSelected ? option['color'] : null,
-                      ),
-                      overflow: TextOverflow.ellipsis, // Handle text overflow
-                      ),
-                      subtitle: Text(
-                      option['description'],
-                      style: TextStyle(
-                        fontSize: 11, // Reduced font size
-                        color: Theme.of(context).brightness == Brightness.dark 
-                          ? Colors.grey[400] 
-                          : Colors.grey[600],
-                      ),
-                      overflow: TextOverflow.ellipsis, // Handle text overflow
-                      ),
-                      trailing: isSelected 
-                        ? Icon(Icons.arrow_forward_ios, size: 12, color: option['color']) 
-                        : null,
-                      shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      ),
-                      onTap: () {
-                      setState(() {
-                        _selectedIndex = index;
-                        _animationController.reset();
-                        _animationController.forward();
-                      });
-                      },
-                    ),
-                    );
-                  },
-                  ),
-                ),
-
-                // Device info and current time at bottom
-                Container(
-                  padding: const EdgeInsets.all(12), // Reduced padding
-                  child: Column(
-                  children: [
-                    const Divider(),
-                    const SizedBox(height: 6),
-                    Row(
-                    children: [
-                      Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF4E6AF3).withOpacity(0.2),
-                          blurRadius: 4, // Reduced blur
-                          offset: const Offset(0, 1), // Reduced offset
-                        ),
-                        ],
-                      ),
-                      child: const CircleAvatar(
-                        radius: 14, // Reduced radius
-                        backgroundColor: Color(0xFF4E6AF3),
-                        child: Icon(
-                        Icons.devices,
-                        color: Colors.white,
-                        size: 14,
-                        ),
-                      ),
-                      ),
-                      const SizedBox(width: 8), // Reduced spacing
-                      Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                        Text(
-                           computerName,
-                          style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12, // Reduced font size
-                          ),
-                          overflow: TextOverflow.ellipsis, // Handle text overflow
-                        ),
-                        StreamBuilder<String>(
-                          stream: Stream.periodic(
-                          const Duration(seconds: 1),
-                          (_) => DateFormat('MMM dd, HH:mm:ss').format(DateTime.now()),
-                          ),
-                          initialData: DateFormat('MMM dd, HH:mm:ss').format(DateTime.now()),
-                          builder: (context, snapshot) {
-                          return Text(
-                            snapshot.data!,
-                            style: TextStyle(
-                            fontSize: 10, // Reduced font size
-                            color: Theme.of(context).brightness == Brightness.dark 
-                              ? Colors.grey[400] 
-                              : Colors.grey[600],
-                            ),
-                            overflow: TextOverflow.ellipsis, // Handle text overflow
-                          );
-                          },
-                        ),
-                        ],
-                      ),
-                      ),
-                    ],
-                    ),
-                  ],
-                  ),
-                ),
-              ],
+            child: const Icon(
+              Icons.swap_horiz_rounded,
+              size: 20,
+              color: Colors.white,
             ),
           ),
-
-          // Right content area
-          Expanded(
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 300),
-              child: _buildRightPanel(),
+          const SizedBox(width: 8),
+          ShaderMask(
+            shaderCallback: (bounds) => const LinearGradient(
+              colors: [Color(0xFF4E6AF3), Color(0xFF2AB673)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ).createShader(bounds),
+            child: Text(
+              'SpeedShare',
+              style: TextStyle(
+                fontSize: ResponsiveContext(context).isMobile ? 18 : 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
             ),
+          ),
+        ],
+      ),
+      actions: ResponsiveContext(context).isTablet ? _buildTabletActions() : null,
+      elevation: 2,
+    );
+  }
+
+  List<Widget> _buildTabletActions() {
+    return _sidebarOptions.asMap().entries.map((entry) {
+      int index = entry.key;
+      Map<String, dynamic> option = entry.value;
+      bool isSelected = _selectedIndex == index;
+      
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: IconButton(
+          onPressed: () => _selectOption(index),
+          icon: Icon(option['icon']),
+          color: isSelected ? option['color'] : null,
+          tooltip: option['title'],
+        ),
+      );
+    }).toList();
+  }
+
+  Drawer _buildDrawer() {
+    return Drawer(
+      child: _buildSidebarContent(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (ResponsiveContext(context).isMobile) {
+      return _buildMobileLayout();
+    } else if (ResponsiveContext(context).isTablet) {
+      return _buildTabletLayout();
+    } else {
+      return _buildDesktopLayout();
+    }
+  }
+
+  Widget _buildMobileLayout() {
+    return Container(
+      padding: ResponsiveContext(context).responsivePadding,
+      child: _buildRightPanel(),
+    );
+  }
+
+  Widget _buildTabletLayout() {
+    return Container(
+      padding: ResponsiveContext(context).responsivePadding,
+      child: _buildRightPanel(),
+    );
+  }
+
+  Widget _buildDesktopLayout() {
+    return Row(
+      children: [
+        // Left sidebar
+        Container(
+          width: _calculateSidebarWidth(),
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+              ),
+            ],
+          ),
+          child: _buildSidebarContent(),
+        ),
+        // Right content area
+        Expanded(
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            child: _buildRightPanel(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  double _calculateSidebarWidth() {
+    if (ResponsiveContext(context).isDesktop) return 220;
+    if (ResponsiveContext(context).isLargeDesktop) return 280;
+    return 200;
+  }
+
+  Widget _buildSidebarContent() {
+    return Column(
+      children: [
+        // Logo/Title section - only show in desktop sidebar
+        if (ResponsiveContext(context).isDesktop || ResponsiveContext(context).isLargeDesktop)
+          _buildLogoSection(),
+
+        if (ResponsiveContext(context).isDesktop || ResponsiveContext(context).isLargeDesktop)
+          const Divider(height: 1),
+
+        // Menu options
+        Expanded(
+          child: ListView.builder(
+            padding: EdgeInsets.symmetric(
+              vertical: ResponsiveContext(context).isMobile ? 16 : 8,
+              horizontal: ResponsiveContext(context).isMobile ? 16 : 8,
+            ),
+            itemCount: _sidebarOptions.length,
+            itemBuilder: (context, index) => _buildMenuOption(index),
+          ),
+        ),
+
+        // Device info - only show in desktop sidebar
+        if (ResponsiveContext(context).isDesktop || ResponsiveContext(context).isLargeDesktop)
+          _buildDeviceInfo(),
+      ],
+    );
+  }
+
+  Widget _buildLogoSection() {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        vertical: context.isLargeDesktop ? 24 : 16,
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: EdgeInsets.all(context.isLargeDesktop ? 12 : 10),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF4E6AF3), Color(0xFF2AB673)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF4E6AF3).withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Icon(
+              Icons.swap_horiz_rounded,
+              size: context.isLargeDesktop ? 32 : 28,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 10),
+          ShaderMask(
+            shaderCallback: (bounds) => const LinearGradient(
+              colors: [Color(0xFF4E6AF3), Color(0xFF2AB673)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ).createShader(bounds),
+            child: Text(
+              'SpeedShare',
+              style: TextStyle(
+                fontSize: context.isLargeDesktop ? 24 : 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'Fast File Transfers',
+            style: TextStyle(
+              fontSize: context.isLargeDesktop ? 13 : 11,
+              color: Theme.of(context).brightness == Brightness.dark 
+                ? Colors.grey[400] 
+                : Colors.grey[600],
+            ),
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildRightPanel() {
-    // If no option is selected, show the welcome screen
-    if (_selectedIndex == -1) {
-      return FadeTransition(
-        opacity: _fadeAnimation,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16), // Reduced padding
-          child: Center(
-            child: SingleChildScrollView( // Add scrolling capability
-              child: FadeIn(
-                child: Card(
-                  elevation: 3,
-                  shadowColor: Colors.black.withOpacity(0.3),
-                  child: Padding(
-                    padding: const EdgeInsets.all(24.0), // Reduced padding
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 500), // Constrain width
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Lottie.asset(
-                            'assets/logo.json',
-                            height: 120, // Reduced height
-                            fit: BoxFit.contain,
-                          ),
-                          const SizedBox(height: 20), // Reduced spacing
-                          ShaderMask(
-                            shaderCallback: (bounds) => const LinearGradient(
-                              colors: [Color(0xFF4E6AF3), Color(0xFF2AB673)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ).createShader(bounds),
-                            child: const Text(
-                              'Welcome to SpeedShare',
-                              style: TextStyle(
-                                fontSize: 24, // Reduced font size
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                              textAlign: TextAlign.center,
-                              overflow: TextOverflow.ellipsis, // Handle text overflow
-                            ),
-                          ),
-                          const SizedBox(height: 12), // Reduced spacing
-                          const Text(
-                            'Share files between devices quickly and easily.\nNo internet required - just connect to the same network.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 13, // Reduced font size
-                              height: 1.4,
-                            ),
-                          ),
-                          const SizedBox(height: 24), // Reduced spacing
-                          
-                          // Wrap for responsive feature items
-                          Wrap(
-                            alignment: WrapAlignment.center,
-                            spacing: 20, // Horizontal spacing
-                            runSpacing: 16, // Vertical spacing
-                            children: [
-                              _buildFeatureItem(
-                                Icons.wifi_off_rounded, 
-                                'No Internet'
-                              ),
-                              _buildFeatureItem(
-                                Icons.speed_rounded, 
-                                'Fast Transfers'
-                              ),
-                              _buildFeatureItem(
-                                Icons.security_rounded, 
-                                'Secure'
-                              ),
-                            ],
-                          ),
-                          
-                          const SizedBox(height: 24), // Reduced spacing
-                          
-                          // Wrap for responsive buttons
-                          Wrap(
-                            alignment: WrapAlignment.center,
-                            spacing: 12, // Horizontal spacing
-                            runSpacing: 12, // Vertical spacing
-                            children: [
-                              _buildActionButton(
-                                'Send Files',
-                                Icons.send_rounded,
-                                const Color(0xFF4E6AF3),
-                                () {
-                                  setState(() {
-                                    _selectedIndex = 0;
-                                    _animationController.reset();
-                                    _animationController.forward();
-                                  });
-                                },
-                              ),
-                              _buildActionButton(
-                                'Receive Files',
-                                Icons.download_rounded,
-                                const Color(0xFF2AB673),
-                                () {
-                                  setState(() {
-                                    _selectedIndex = 1;
-                                    _animationController.reset();
-                                    _animationController.forward();
-                                  });
-                                },
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
+  Widget _buildMenuOption(int index) {
+    final option = _sidebarOptions[index];
+    final isSelected = _selectedIndex == index;
+
+    return Container(
+      margin: EdgeInsets.only(
+        bottom: ResponsiveContext(context).isMobile ? 8 : 6,
+      ),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(ResponsiveContext(context).isMobile ? 12 : 8),
+        color: isSelected 
+          ? option['color'].withOpacity(0.1)
+          : Colors.transparent,
+      ),
+      child: ListTile(
+        dense: !ResponsiveContext(context).isMobile,
+        visualDensity: ResponsiveContext(context).isMobile 
+          ? VisualDensity.standard 
+          : VisualDensity.compact,
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: ResponsiveContext(context).isMobile ? 16 : 8,
+          vertical: ResponsiveContext(context).isMobile ? 8 : 2,
+        ),
+        leading: Container(
+          padding: EdgeInsets.all(ResponsiveContext(context).isMobile ? 8 : 6),
+          decoration: BoxDecoration(
+            color: isSelected 
+              ? option['color'].withOpacity(0.2)
+              : Theme.of(context).brightness == Brightness.dark
+                ? Colors.grey[800]
+                : Colors.grey[200],
+            borderRadius: BorderRadius.circular(ResponsiveContext(context).isMobile ? 8 : 6),
+          ),
+          child: Icon(
+            option['icon'],
+            color: isSelected ? option['color'] : Colors.grey[600],
+            size: ResponsiveContext(context).isMobile ? 20 : 16,
+          ),
+        ),
+        title: Text(
+          option['title'],
+          style: TextStyle(
+            fontSize: ResponsiveContext(context).isMobile ? 16 : 13,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            color: isSelected ? option['color'] : null,
+          ),
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: ResponsiveContext(context).isMobile ? null : Text(
+          option['description'],
+          style: TextStyle(
+            fontSize: 11,
+            color: Theme.of(context).brightness == Brightness.dark 
+              ? Colors.grey[400] 
+              : Colors.grey[600],
+          ),
+          overflow: TextOverflow.ellipsis,
+        ),
+        trailing: isSelected && !ResponsiveContext(context).isMobile
+          ? Icon(Icons.arrow_forward_ios, size: 12, color: option['color']) 
+          : null,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(ResponsiveContext(context).isMobile ? 12 : 8),
+        ),
+        onTap: () => _selectOption(index),
+      ),
+    );
+  }
+
+  Widget _buildDeviceInfo() {
+    return Container(
+      padding: EdgeInsets.all(context.isLargeDesktop ? 16 : 12),
+      child: Column(
+        children: [
+          const Divider(),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF4E6AF3).withOpacity(0.2),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1),
                     ),
+                  ],
+                ),
+                child: CircleAvatar(
+                  radius: context.isLargeDesktop ? 16 : 14,
+                  backgroundColor: const Color(0xFF4E6AF3),
+                  child: Icon(
+                    Icons.devices,
+                    color: Colors.white,
+                    size: context.isLargeDesktop ? 16 : 14,
                   ),
                 ),
               ),
-            ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      computerName,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: context.isLargeDesktop ? 14 : 12,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    StreamBuilder<String>(
+                      stream: Stream.periodic(
+                        const Duration(seconds: 1),
+                        (_) => DateFormat('MMM dd, HH:mm:ss').format(DateTime.now()),
+                      ),
+                      initialData: DateFormat('MMM dd, HH:mm:ss').format(DateTime.now()),
+                      builder: (context, snapshot) {
+                        return Text(
+                          snapshot.data!,
+                          style: TextStyle(
+                            fontSize: context.isLargeDesktop ? 11 : 10,
+                            color: Theme.of(context).brightness == Brightness.dark 
+                              ? Colors.grey[400] 
+                              : Colors.grey[600],
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ),
-      );
+        ],
+      ),
+    );
+  }
+
+  void _selectOption(int index) {
+    setState(() {
+      _selectedIndex = index;
+      _animationController.reset();
+      _animationController.forward();
+    });
+    
+    // Close drawer on mobile after selection
+    if (ResponsiveContext(context).isMobile && Navigator.canPop(context)) {
+      Navigator.pop(context);
+    }
+  }
+
+  Widget _buildRightPanel() {
+    if (_selectedIndex == -1) {
+      return _buildWelcomeScreen();
     }
 
     // Show the selected screen
@@ -458,66 +484,266 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
         return FileSenderScreen();
       case 1:
         return ReceiveScreen();
-      case 2 :
+      case 2:
         return SyncScreen();
       case 3:
         return SettingsScreen();
       default:
-        return Container(); // Fallback, should never happen
+        return Container();
     }
   }
 
-  Widget _buildFeatureItem(IconData icon, String text) {
-    return SizedBox(
-      width: 90, // Fixed width for consistent layout
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10), // Reduced padding
-            decoration: BoxDecoration(
-              color: const Color(0xFF4E6AF3).withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              icon,
-              color: const Color(0xFF4E6AF3),
-              size: 18, // Reduced size
+  Widget _buildWelcomeScreen() {
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: Container(
+        padding: ResponsiveContext(context).responsivePadding,
+        child: Center(
+          child: SingleChildScrollView(
+            child: FadeIn(
+              child: Card(
+                elevation: 3,
+                shadowColor: Colors.black.withOpacity(0.3),
+                child: Padding(
+                  padding: ResponsiveContext(context).responsivePadding,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: ResponsiveContext(context).maxContentWidth,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Lottie.asset(
+                          'assets/logo.json',
+                          height: _calculateLottieHeight(),
+                          fit: BoxFit.contain,
+                        ),
+                        SizedBox(height: ResponsiveContext(context).isMobile ? 16 : 20),
+                        ShaderMask(
+                          shaderCallback: (bounds) => const LinearGradient(
+                            colors: [Color(0xFF4E6AF3), Color(0xFF2AB673)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ).createShader(bounds),
+                          child: Text(
+                            'Welcome to SpeedShare',
+                            style: TextStyle(
+                              fontSize: _calculateWelcomeFontSize(),
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        SizedBox(height: ResponsiveContext(context).isMobile ? 8 : 12),
+                        Text(
+                          'Share files between devices quickly and easily.\nNo internet required - just connect to the same network.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: _calculateSubtitleFontSize(),
+                            height: 1.4,
+                          ),
+                        ),
+                        SizedBox(height: ResponsiveContext(context).isMobile ? 20 : 24),
+
+                        // Feature items
+                        _buildFeatureItems(),
+
+                        SizedBox(height: ResponsiveContext(context).isMobile ? 20 : 24),
+
+                        // Action buttons
+                        _buildActionButtons(),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
-          const SizedBox(height: 6), // Reduced spacing
-          Text(
-            text,
-            style: TextStyle(
-              fontSize: 12, // Reduced font size
-              color: Theme.of(context).brightness == Brightness.dark 
-                  ? Colors.grey[300] 
-                  : Colors.grey[700],
-            ),
-            textAlign: TextAlign.center,
-            overflow: TextOverflow.ellipsis, // Handle text overflow
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildActionButton(
-      String text, IconData icon, Color color, VoidCallback onTap) {
+  double _calculateLottieHeight() {
+    if (ResponsiveContext(context).isMobile) return 100;
+    if (ResponsiveContext(context).isTablet) return 120;
+    if (ResponsiveContext(context).isDesktop) return 140;
+    return 160; // Large desktop
+  }
+
+  double _calculateWelcomeFontSize() {
+    if (ResponsiveContext(context).isMobile) return 20;
+    if (ResponsiveContext(context).isTablet) return 24;
+    if (ResponsiveContext(context).isDesktop) return 28;
+    return 32; // Large desktop
+  }
+
+  double _calculateSubtitleFontSize() {
+    if (ResponsiveContext(context).isMobile) return 12;
+    if (ResponsiveContext(context).isTablet) return 13;
+    if (ResponsiveContext(context).isDesktop) return 14;
+    return 16; // Large desktop
+  }
+
+  Widget _buildFeatureItems() {
+    final features = [
+      {'icon': Icons.wifi_off_rounded, 'text': 'No Internet'},
+      {'icon': Icons.speed_rounded, 'text': 'Fast Transfers'},
+      {'icon': Icons.security_rounded, 'text': 'Secure'},
+    ];
+
+    if (ResponsiveContext(context).isMobile) {
+      return Column(
+        children: features
+            .map((feature) => Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: _buildFeatureItem(feature['icon'] as IconData, feature['text'] as String),
+                ))
+            .toList(),
+      );
+    }
+
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: ResponsiveContext(context).isMobile ? 16 : 20,
+      runSpacing: 16,
+      children: features
+          .map((feature) => _buildFeatureItem(feature['icon'] as IconData, feature['text'] as String))
+          .toList(),
+    );
+  }
+
+  Widget _buildFeatureItem(IconData icon, String text) {
+    return SizedBox(
+      width: ResponsiveContext(context).isMobile ? double.infinity : 90,
+      child: ResponsiveContext(context).isMobile
+          ? Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(ResponsiveContext(context).isMobile ? 12 : 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4E6AF3).withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    icon,
+                    color: const Color(0xFF4E6AF3),
+                    size: ResponsiveContext(context).isMobile ? 20 : 18,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Text(
+                  text,
+                  style: TextStyle(
+                    fontSize: ResponsiveContext(context).isMobile ? 14 : 12,
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.grey[300]
+                        : Colors.grey[700],
+                  ),
+                ),
+              ],
+            )
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4E6AF3).withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    icon,
+                    color: const Color(0xFF4E6AF3),
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  text,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).brightness == Brightness.dark 
+                        ? Colors.grey[300] 
+                        : Colors.grey[700],
+                  ),
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildActionButtons() {
+    final buttons = [
+      {
+        'text': 'Send Files',
+        'icon': Icons.send_rounded,
+        'color': const Color(0xFF4E6AF3),
+        'index': 0,
+      },
+      {
+        'text': 'Receive Files',
+        'icon': Icons.download_rounded,
+        'color': const Color(0xFF2AB673),
+        'index': 1,
+      },
+    ];
+
+    if (ResponsiveContext(context).isMobile) {
+      return Column(
+        children: buttons
+            .map((button) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: _buildActionButton(
+                      button['text'] as String,
+                      button['icon'] as IconData,
+                      button['color'] as Color,
+                      () => _selectOption(button['index'] as int),
+                    ),
+                  ),
+                ))
+            .toList(),
+      );
+    }
+
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 12,
+      runSpacing: 12,
+      children: buttons
+          .map((button) => _buildActionButton(
+                button['text'] as String,
+                button['icon'] as IconData,
+                button['color'] as Color,
+                () => _selectOption(button['index'] as int),
+              ))
+          .toList(),
+    );
+  }
+
+  Widget _buildActionButton(String text, IconData icon, Color color, VoidCallback onTap) {
     return ElevatedButton.icon(
       onPressed: onTap,
-      icon: Icon(icon, size: 16), // Reduced icon size
+      icon: Icon(icon, size: ResponsiveContext(context).isMobile ? 18 : 16),
       label: Text(
         text,
-        style: const TextStyle(fontSize: 13), // Reduced font size
+        style: TextStyle(fontSize: ResponsiveContext(context).isMobile ? 14 : 13),
       ),
       style: ElevatedButton.styleFrom(
         foregroundColor: Colors.white,
         backgroundColor: color,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), // Reduced padding
+        padding: EdgeInsets.symmetric(
+          horizontal: ResponsiveContext(context).isMobile ? 24 : 16,
+          vertical: ResponsiveContext(context).isMobile ? 16 : 12,
+        ),
         elevation: 2,
-        shadowColor: color.withOpacity(0.4),
-        minimumSize: const Size(120, 0), // Minimum width to maintain consistent sizing
+        shadowColor: color.withAlpha((0.4 * 255).toInt()),
+        minimumSize: Size(ResponsiveContext(context).isMobile ? double.infinity : 120, 0),
       ),
     );
   }
