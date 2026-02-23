@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:animate_do/animate_do.dart';
 import 'package:speedshare/main.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:io';
@@ -17,10 +16,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   static const int MIN_PORT = 1024;
   static const int MAX_PORT = 65535;
   static const int DEFAULT_PORT = 8080;
-  
+
   // User settings
   DateTime expiryDate = DateTime(2029, 5, 15);
-  
+
   // App settings
   String downloadPath = '';
   bool darkMode = false;
@@ -33,11 +32,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool saveHistory = true;
   bool isPortValid = true;
   String? portError;
-  
+
   // Controllers
   final TextEditingController _portController = TextEditingController();
   final TextEditingController _deviceNameController = TextEditingController();
-  
+
   // Dynamic values instead of hardcoded
   String get currentDateTime => DateTime.now().toString();
   String get userLogin => Platform.localHostname;
@@ -59,17 +58,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {
       loading = true;
     });
-    
+
     try {
       final prefs = await SharedPreferences.getInstance();
-      
+
       // Get download path
       Directory? downloadsDirectory = await getDownloadsDirectory();
       String speedsharePath = '${downloadsDirectory!.path}/speedshare';
-      
-      final loadedDeviceName = prefs.getString('deviceName') ?? Platform.localHostname;
+
+      final loadedDeviceName =
+          prefs.getString('deviceName') ?? Platform.localHostname;
       final loadedPort = prefs.getInt('port') ?? DEFAULT_PORT;
-      
+
       setState(() {
         deviceName = loadedDeviceName;
         darkMode = prefs.getBool('darkMode') ?? false;
@@ -81,7 +81,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         saveHistory = prefs.getBool('saveHistory') ?? true;
         loading = false;
       });
-      
+
       // Update controllers
       _deviceNameController.text = deviceName;
       _portController.text = port.toString();
@@ -104,10 +104,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (!_validateAllSettings()) {
       return;
     }
-    
+
     try {
       final prefs = await SharedPreferences.getInstance();
-      
+
       await prefs.setString('deviceName', deviceName);
       await prefs.setBool('darkMode', darkMode);
       await prefs.setBool('autoStart', autoStart);
@@ -116,13 +116,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await prefs.setInt('port', port);
       await prefs.setString('downloadPath', downloadPath);
       await prefs.setBool('saveHistory', saveHistory);
-      
+
       _showSnackBar(
         'Settings saved successfully',
         Icons.check_circle_rounded,
         Color(0xFF2AB673),
       );
-      
+
       // Show restart notification if port changed
       final currentPort = prefs.getInt('port') ?? DEFAULT_PORT;
       if (currentPort != port) {
@@ -152,7 +152,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
       return false;
     }
-    
+
     // Validate device name
     if (deviceName.trim().isEmpty) {
       _showSnackBar(
@@ -162,7 +162,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
       return false;
     }
-    
+
     // Validate download path
     if (downloadPath.trim().isEmpty) {
       _showSnackBar(
@@ -172,7 +172,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
       return false;
     }
-    
+
     return true;
   }
 
@@ -183,7 +183,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         portError = 'Port cannot be empty';
         return;
       }
-      
+
       try {
         final newPort = int.parse(value);
         if (newPort < MIN_PORT || newPort > MAX_PORT) {
@@ -204,7 +204,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _selectDownloadFolder() async {
     try {
       String? path = await FilePicker.platform.getDirectoryPath();
-      
+
       if (path != null) {
         // Validate that the path is accessible
         final directory = Directory(path);
@@ -259,7 +259,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               'Cancel',
               style: TextStyle(
                 color: Colors.grey[700],
-                fontSize: (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
+                fontSize:
+                    (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
               ),
             ),
           ),
@@ -270,7 +271,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 final prefs = await SharedPreferences.getInstance();
                 await prefs.clear();
                 await _loadSettings();
-                
+
                 _showSnackBar(
                   'Settings reset to defaults',
                   Icons.refresh_rounded,
@@ -292,7 +293,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               'Reset',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                fontSize: (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
+                fontSize:
+                    (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
               ),
             ),
           ),
@@ -326,7 +328,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  void _showSnackBar(String message, IconData icon, Color color, {SnackBarAction? action}) {
+  void _showSnackBar(String message, IconData icon, Color color,
+      {SnackBarAction? action}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
@@ -355,9 +358,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           children: [
             // Header with title - Responsive
             _buildHeader(),
-            
+
             SizedBox(height: context.isMobile ? 12 : 16),
-            
+
             // Main content - Responsive
             Expanded(
               child: loading
@@ -366,7 +369,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     )
                   : _buildSettingsContent(),
             ),
-            
+
             // Bottom save/reset buttons - Responsive
             _buildBottomButtons(),
           ],
@@ -398,7 +401,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Text(
                 'Settings',
                 style: TextStyle(
-                  fontSize: (context.isMobile ? 18 : 20) * context.fontSizeMultiplier,
+                  fontSize:
+                      (context.isMobile ? 18 : 20) * context.fontSizeMultiplier,
                   fontWeight: FontWeight.bold,
                   color: Color(0xFF4E6AF3),
                 ),
@@ -406,9 +410,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Text(
                 'Configure your preferences',
                 style: TextStyle(
-                  fontSize: (context.isMobile ? 11 : 13) * context.fontSizeMultiplier,
-                  color: Theme.of(context).brightness == Brightness.dark 
-                      ? Colors.grey[400] 
+                  fontSize:
+                      (context.isMobile ? 11 : 13) * context.fontSizeMultiplier,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.grey[400]
                       : Colors.grey[600],
                 ),
               ),
@@ -482,7 +487,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ],
     );
   }
-  
+
   Widget _buildSettingsContent() {
     return SingleChildScrollView(
       child: _buildResponsiveLayout(),
@@ -506,23 +511,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
         // Account section
         _buildAccountSection(),
         SizedBox(height: context.isMobile ? 12 : 16),
-        
+
         // General settings
         _buildGeneralSettingsCard(),
         SizedBox(height: context.isMobile ? 12 : 16),
-        
+
         // Network settings
         _buildNetworkSettingsCard(),
         SizedBox(height: context.isMobile ? 12 : 16),
-        
+
         // File settings
         _buildFileSettingsCard(),
         SizedBox(height: context.isMobile ? 12 : 16),
-        
+
         // Appearance settings
         _buildAppearanceSettingsCard(),
         SizedBox(height: context.isMobile ? 12 : 16),
-        
+
         // About section
         _buildAboutSection(context),
       ],
@@ -536,7 +541,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         // Account section (full width)
         _buildAccountSection(),
         const SizedBox(height: 16),
-        
+
         // Settings in rows
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -562,9 +567,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ],
         ),
-        
+
         const SizedBox(height: 16),
-        
+
         // About section (full width)
         _buildAboutSection(context),
       ],
@@ -588,9 +593,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
           ),
         ),
-        
+
         const SizedBox(width: 24),
-        
+
         // Right column
         Expanded(
           flex: 2,
@@ -607,7 +612,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ],
     );
   }
-  
+
   Widget _buildAccountSection() {
     return Card(
       child: Padding(
@@ -633,19 +638,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Text(
                   'Account',
                   style: TextStyle(
-                    fontSize: (context.isMobile ? 14 : 16) * context.fontSizeMultiplier,
+                    fontSize: (context.isMobile ? 14 : 16) *
+                        context.fontSizeMultiplier,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
               ],
             ),
             SizedBox(height: context.isMobile ? 12 : 16),
-            
+
             // User info card - Responsive
             _buildUserInfoCard(),
-            
+
             SizedBox(height: context.isMobile ? 12 : 16),
-            
+
             // Device name editor - Responsive
             _buildDeviceNameEditor(),
           ],
@@ -677,9 +683,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             child: Center(
               child: Text(
-                deviceName.isNotEmpty ? deviceName.substring(0, 1).toUpperCase() : 'D',
+                deviceName.isNotEmpty
+                    ? deviceName.substring(0, 1).toUpperCase()
+                    : 'D',
                 style: TextStyle(
-                  fontSize: (context.isMobile ? 16 : 20) * context.fontSizeMultiplier,
+                  fontSize:
+                      (context.isMobile ? 16 : 20) * context.fontSizeMultiplier,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
                 ),
@@ -694,7 +703,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Text(
                   deviceName,
                   style: TextStyle(
-                    fontSize: (context.isMobile ? 14 : 16) * context.fontSizeMultiplier,
+                    fontSize: (context.isMobile ? 14 : 16) *
+                        context.fontSizeMultiplier,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -703,9 +713,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   children: [
                     Container(
                       padding: EdgeInsets.symmetric(
-                        horizontal: context.isMobile ? 6 : 8, 
-                        vertical: context.isMobile ? 2 : 4
-                      ),
+                          horizontal: context.isMobile ? 6 : 8,
+                          vertical: context.isMobile ? 2 : 4),
                       decoration: BoxDecoration(
                         color: const Color(0xFF2AB673),
                         borderRadius: BorderRadius.circular(12),
@@ -713,7 +722,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       child: Text(
                         'Active',
                         style: TextStyle(
-                          fontSize: (context.isMobile ? 9 : 11) * context.fontSizeMultiplier,
+                          fontSize: (context.isMobile ? 9 : 11) *
+                              context.fontSizeMultiplier,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                         ),
@@ -864,12 +874,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             setState(() {
               darkMode = value;
             });
-            
+
             // Save theme preference immediately
             try {
               final prefs = await SharedPreferences.getInstance();
               await prefs.setBool('darkMode', value);
-              
+
               _showSnackBar(
                 'Theme will change on next app restart',
                 Icons.palette_rounded,
@@ -888,7 +898,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ],
     );
   }
-  
+
   Widget _buildSettingsCard({
     required String title,
     required IconData icon,
@@ -918,7 +928,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Text(
                   title,
                   style: TextStyle(
-                    fontSize: (context.isMobile ? 14 : 16) * context.fontSizeMultiplier,
+                    fontSize: (context.isMobile ? 14 : 16) *
+                        context.fontSizeMultiplier,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -931,7 +942,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
-  
+
   Widget _buildSwitchSetting({
     required String title,
     required String subtitle,
@@ -966,13 +977,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   title,
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    fontSize: (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
+                    fontSize: (context.isMobile ? 12 : 14) *
+                        context.fontSizeMultiplier,
                   ),
                 ),
                 Text(
                   subtitle,
                   style: TextStyle(
-                    fontSize: (context.isMobile ? 10 : 12) * context.fontSizeMultiplier,
+                    fontSize: (context.isMobile ? 10 : 12) *
+                        context.fontSizeMultiplier,
                     color: Theme.of(context).brightness == Brightness.dark
                         ? Colors.grey[400]
                         : Colors.grey[600],
@@ -990,7 +1003,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
-  
+
   Widget _buildPortSetting() {
     return Padding(
       padding: EdgeInsets.symmetric(vertical: context.isMobile ? 2 : 4),
@@ -1020,13 +1033,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   'Port',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    fontSize: (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
+                    fontSize: (context.isMobile ? 12 : 14) *
+                        context.fontSizeMultiplier,
                   ),
                 ),
                 Text(
                   'Set the port number for receiving files',
                   style: TextStyle(
-                    fontSize: (context.isMobile ? 10 : 12) * context.fontSizeMultiplier,
+                    fontSize: (context.isMobile ? 10 : 12) *
+                        context.fontSizeMultiplier,
                   ),
                 ),
                 SizedBox(height: context.isMobile ? 6 : 8),
@@ -1058,10 +1073,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         vertical: context.isMobile ? 6 : 8,
                       ),
                       errorText: portError,
-                      errorStyle: TextStyle(fontSize: (context.isMobile ? 9 : 10) * context.fontSizeMultiplier),
+                      errorStyle: TextStyle(
+                          fontSize: (context.isMobile ? 9 : 10) *
+                              context.fontSizeMultiplier),
                     ),
                     style: TextStyle(
-                      fontSize: (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
+                      fontSize: (context.isMobile ? 12 : 14) *
+                          context.fontSizeMultiplier,
                     ),
                     keyboardType: TextInputType.number,
                     onChanged: _validatePort,
@@ -1079,7 +1097,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Text(
                       'Requires app restart',
                       style: TextStyle(
-                        fontSize: (context.isMobile ? 9 : 11) * context.fontSizeMultiplier,
+                        fontSize: (context.isMobile ? 9 : 11) *
+                            context.fontSizeMultiplier,
                         fontStyle: FontStyle.italic,
                         color: Colors.orange,
                       ),
@@ -1090,7 +1109,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Text(
                   'Valid range: $MIN_PORT - $MAX_PORT',
                   style: TextStyle(
-                    fontSize: (context.isMobile ? 8 : 10) * context.fontSizeMultiplier,
+                    fontSize: (context.isMobile ? 8 : 10) *
+                        context.fontSizeMultiplier,
                     color: Colors.grey[500],
                   ),
                 ),
@@ -1101,7 +1121,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
-  
+
   Widget _buildDownloadPathSetting() {
     return Padding(
       padding: EdgeInsets.symmetric(vertical: context.isMobile ? 2 : 4),
@@ -1131,21 +1151,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   'Download Location',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    fontSize: (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
+                    fontSize: (context.isMobile ? 12 : 14) *
+                        context.fontSizeMultiplier,
                   ),
                 ),
                 Text(
                   'Set where received files are saved',
                   style: TextStyle(
-                    fontSize: (context.isMobile ? 10 : 12) * context.fontSizeMultiplier,
+                    fontSize: (context.isMobile ? 10 : 12) *
+                        context.fontSizeMultiplier,
                   ),
                 ),
                 SizedBox(height: context.isMobile ? 6 : 8),
                 Container(
                   padding: EdgeInsets.symmetric(
-                    horizontal: context.isMobile ? 8 : 12, 
-                    vertical: context.isMobile ? 6 : 8
-                  ),
+                      horizontal: context.isMobile ? 8 : 12,
+                      vertical: context.isMobile ? 6 : 8),
                   decoration: BoxDecoration(
                     border: Border.all(
                       color: Colors.grey.withOpacity(0.5),
@@ -1158,7 +1179,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         child: Text(
                           downloadPath,
                           style: TextStyle(
-                            fontSize: (context.isMobile ? 10 : 12) * context.fontSizeMultiplier,
+                            fontSize: (context.isMobile ? 10 : 12) *
+                                context.fontSizeMultiplier,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -1169,20 +1191,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         child: Text(
                           'Browse',
                           style: TextStyle(
-                            fontSize: (context.isMobile ? 11 : 13) * context.fontSizeMultiplier,
+                            fontSize: (context.isMobile ? 11 : 13) *
+                                context.fontSizeMultiplier,
                           ),
                         ),
                         style: TextButton.styleFrom(
                           padding: EdgeInsets.symmetric(
-                            horizontal: context.isMobile ? 8 : 12, 
-                            vertical: 0
-                          ),
+                              horizontal: context.isMobile ? 8 : 12,
+                              vertical: 0),
                         ),
                       ),
                       if (downloadPath.isNotEmpty)
                         IconButton(
                           onPressed: _openDownloadsFolder,
-                          icon: Icon(Icons.folder_open, size: context.isMobile ? 14 : 16),
+                          icon: Icon(Icons.folder_open,
+                              size: context.isMobile ? 14 : 16),
                           tooltip: 'Open Folder',
                           padding: EdgeInsets.all(context.isMobile ? 4 : 6),
                         ),
@@ -1196,7 +1219,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
-  
+
   Widget _buildAboutSection(BuildContext context) {
     // Helper to show dialogs for Privacy Policy and Terms
     void _showInfoDialog(String title, String content) {
@@ -1206,14 +1229,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
           title: Text(
             title,
             style: TextStyle(
-              fontSize: (context.isMobile ? 16 : 18) * context.fontSizeMultiplier,
+              fontSize:
+                  (context.isMobile ? 16 : 18) * context.fontSizeMultiplier,
             ),
           ),
           content: SingleChildScrollView(
             child: Text(
               content,
               style: TextStyle(
-                fontSize: (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
+                fontSize:
+                    (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
               ),
             ),
           ),
@@ -1223,7 +1248,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Text(
                 'Close',
                 style: TextStyle(
-                  fontSize: (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
+                  fontSize:
+                      (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
                 ),
               ),
             ),
@@ -1277,7 +1303,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Text(
                   'About',
                   style: TextStyle(
-                    fontSize: (context.isMobile ? 14 : 16) * context.fontSizeMultiplier,
+                    fontSize: (context.isMobile ? 14 : 16) *
+                        context.fontSizeMultiplier,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -1308,7 +1335,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Text(
                   'SpeedShare',
                   style: TextStyle(
-                    fontSize: (context.isMobile ? 16 : 18) * context.fontSizeMultiplier,
+                    fontSize: (context.isMobile ? 16 : 18) *
+                        context.fontSizeMultiplier,
                     fontWeight: FontWeight.bold,
                     color: Color(0xFF4E6AF3),
                   ),
@@ -1316,7 +1344,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Text(
                   'Version 1.0.0',
                   style: TextStyle(
-                    fontSize: (context.isMobile ? 10 : 12) * context.fontSizeMultiplier,
+                    fontSize: (context.isMobile ? 10 : 12) *
+                        context.fontSizeMultiplier,
                     color: Theme.of(context).brightness == Brightness.dark
                         ? Colors.grey[400]
                         : Colors.grey[600],
@@ -1326,14 +1355,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Text(
                   '© 2025 SpeedShare. All rights reserved.',
                   style: TextStyle(
-                    fontSize: (context.isMobile ? 9 : 11) * context.fontSizeMultiplier,
+                    fontSize: (context.isMobile ? 9 : 11) *
+                        context.fontSizeMultiplier,
                     color: Theme.of(context).brightness == Brightness.dark
                         ? Colors.grey[500]
                         : Colors.grey[600],
                   ),
                 ),
                 SizedBox(height: context.isMobile ? 6 : 8),
-                
+
                 // Policy links - Responsive
                 if (context.isMobile)
                   Column(
@@ -1343,25 +1373,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           _showInfoDialog(
                             'Privacy Policy',
                             'Privacy Policy\n\n'
-                            'Last updated: May 29, 2025\n\n'
-                            'SpeedShare values your privacy. This Privacy Policy explains how SpeedShare handles your information when you use our application to share files between two computers over the same WiFi network.\n\n'
-                            '1. Information Collection\n'
-                            'SpeedShare does not collect, store, or transmit any personal information or files to any server. All file transfers occur directly between devices on your local WiFi network.\n\n'
-                            '2. How We Use Your Information\n'
-                            'Since we do not collect any personal data, we do not use or share your information in any way.\n\n'
-                            '3. File Transfers\n'
-                            'All files shared using SpeedShare remain within your local network and are not uploaded to any external servers. You are responsible for ensuring that you trust the devices you are connecting to.\n\n'
-                            '4. Security\n'
-                            'We implement reasonable security measures to protect connections between devices; however, please ensure your WiFi network is secure and only connect to trusted devices.\n\n'
-                            '5. Changes to This Policy\n'
-                            'We may update our Privacy Policy from time to time. Any changes will be reflected within the application.\n\n'
-                            '6. Contact Us\n'
-                            'If you have any questions about this Privacy Policy, please contact us at kumarnavinverma7@gmail.com.',
+                                'Last updated: May 29, 2025\n\n'
+                                'SpeedShare values your privacy. This Privacy Policy explains how SpeedShare handles your information when you use our application to share files between two computers over the same WiFi network.\n\n'
+                                '1. Information Collection\n'
+                                'SpeedShare does not collect, store, or transmit any personal information or files to any server. All file transfers occur directly between devices on your local WiFi network.\n\n'
+                                '2. How We Use Your Information\n'
+                                'Since we do not collect any personal data, we do not use or share your information in any way.\n\n'
+                                '3. File Transfers\n'
+                                'All files shared using SpeedShare remain within your local network and are not uploaded to any external servers. You are responsible for ensuring that you trust the devices you are connecting to.\n\n'
+                                '4. Security\n'
+                                'We implement reasonable security measures to protect connections between devices; however, please ensure your WiFi network is secure and only connect to trusted devices.\n\n'
+                                '5. Changes to This Policy\n'
+                                'We may update our Privacy Policy from time to time. Any changes will be reflected within the application.\n\n'
+                                '6. Contact Us\n'
+                                'If you have any questions about this Privacy Policy, please contact us at kumarnavinverma7@gmail.com.',
                           );
                         },
                         child: Text(
                           'Privacy Policy',
-                          style: TextStyle(fontSize: (context.isMobile ? 10 : 11) * context.fontSizeMultiplier),
+                          style: TextStyle(
+                              fontSize: (context.isMobile ? 10 : 11) *
+                                  context.fontSizeMultiplier),
                         ),
                       ),
                       TextButton(
@@ -1369,25 +1401,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           _showInfoDialog(
                             'Terms of Service',
                             'Terms of Service\n\n'
-                            'Last updated: May 29, 2025\n\n'
-                            'Please read these Terms of Service ("Terms") before using SpeedShare ("the App"). By using the App, you agree to be bound by these Terms.\n\n'
-                            '1. Use of the App\n'
-                            'SpeedShare is intended for sharing files between two computers over the same WiFi network. You are responsible for using the App in compliance with all applicable laws and regulations.\n\n'
-                            '2. User Responsibility\n'
-                            'You are solely responsible for the files you choose to share and receive. Do not use SpeedShare to transfer illegal, harmful, or infringing content.\n\n'
-                            '3. No Warranty\n'
-                            'SpeedShare is provided "as is" without any warranties. We do not guarantee that the App will be error-free or uninterrupted.\n\n'
-                            '4. Limitation of Liability\n'
-                            'We are not liable for any damages or losses resulting from the use of SpeedShare, including but not limited to data loss, unauthorized access, or network issues.\n\n'
-                            '5. Modifications\n'
-                            'We reserve the right to modify these Terms at any time. Continued use of the App after changes means you accept the new Terms.\n\n'
-                            '6. Contact Us\n'
-                            'If you have questions about these Terms, contact us at kumarnavinverma7@gmail.com.',
+                                'Last updated: May 29, 2025\n\n'
+                                'Please read these Terms of Service ("Terms") before using SpeedShare ("the App"). By using the App, you agree to be bound by these Terms.\n\n'
+                                '1. Use of the App\n'
+                                'SpeedShare is intended for sharing files between two computers over the same WiFi network. You are responsible for using the App in compliance with all applicable laws and regulations.\n\n'
+                                '2. User Responsibility\n'
+                                'You are solely responsible for the files you choose to share and receive. Do not use SpeedShare to transfer illegal, harmful, or infringing content.\n\n'
+                                '3. No Warranty\n'
+                                'SpeedShare is provided "as is" without any warranties. We do not guarantee that the App will be error-free or uninterrupted.\n\n'
+                                '4. Limitation of Liability\n'
+                                'We are not liable for any damages or losses resulting from the use of SpeedShare, including but not limited to data loss, unauthorized access, or network issues.\n\n'
+                                '5. Modifications\n'
+                                'We reserve the right to modify these Terms at any time. Continued use of the App after changes means you accept the new Terms.\n\n'
+                                '6. Contact Us\n'
+                                'If you have questions about these Terms, contact us at kumarnavinverma7@gmail.com.',
                           );
                         },
                         child: Text(
                           'Terms of Service',
-                          style: TextStyle(fontSize: (context.isMobile ? 10 : 11) * context.fontSizeMultiplier),
+                          style: TextStyle(
+                              fontSize: (context.isMobile ? 10 : 11) *
+                                  context.fontSizeMultiplier),
                         ),
                       ),
                     ],
@@ -1401,25 +1435,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           _showInfoDialog(
                             'Privacy Policy',
                             'Privacy Policy\n\n'
-                            'Last updated: May 29, 2025\n\n'
-                            'SpeedShare values your privacy. This Privacy Policy explains how SpeedShare handles your information when you use our application to share files between two computers over the same WiFi network.\n\n'
-                            '1. Information Collection\n'
-                            'SpeedShare does not collect, store, or transmit any personal information or files to any server. All file transfers occur directly between devices on your local WiFi network.\n\n'
-                            '2. How We Use Your Information\n'
-                            'Since we do not collect any personal data, we do not use or share your information in any way.\n\n'
-                            '3. File Transfers\n'
-                            'All files shared using SpeedShare remain within your local network and are not uploaded to any external servers. You are responsible for ensuring that you trust the devices you are connecting to.\n\n'
-                            '4. Security\n'
-                            'We implement reasonable security measures to protect connections between devices; however, please ensure your WiFi network is secure and only connect to trusted devices.\n\n'
-                            '5. Changes to This Policy\n'
-                            'We may update our Privacy Policy from time to time. Any changes will be reflected within the application.\n\n'
-                            '6. Contact Us\n'
-                            'If you have any questions about this Privacy Policy, please contact us at kumarnavinverma7@gmail.com.',
+                                'Last updated: May 29, 2025\n\n'
+                                'SpeedShare values your privacy. This Privacy Policy explains how SpeedShare handles your information when you use our application to share files between two computers over the same WiFi network.\n\n'
+                                '1. Information Collection\n'
+                                'SpeedShare does not collect, store, or transmit any personal information or files to any server. All file transfers occur directly between devices on your local WiFi network.\n\n'
+                                '2. How We Use Your Information\n'
+                                'Since we do not collect any personal data, we do not use or share your information in any way.\n\n'
+                                '3. File Transfers\n'
+                                'All files shared using SpeedShare remain within your local network and are not uploaded to any external servers. You are responsible for ensuring that you trust the devices you are connecting to.\n\n'
+                                '4. Security\n'
+                                'We implement reasonable security measures to protect connections between devices; however, please ensure your WiFi network is secure and only connect to trusted devices.\n\n'
+                                '5. Changes to This Policy\n'
+                                'We may update our Privacy Policy from time to time. Any changes will be reflected within the application.\n\n'
+                                '6. Contact Us\n'
+                                'If you have any questions about this Privacy Policy, please contact us at kumarnavinverma7@gmail.com.',
                           );
                         },
                         child: Text(
                           'Privacy Policy',
-                          style: TextStyle(fontSize: (context.isMobile ? 10 : 11) * context.fontSizeMultiplier),
+                          style: TextStyle(
+                              fontSize: (context.isMobile ? 10 : 11) *
+                                  context.fontSizeMultiplier),
                         ),
                       ),
                       Text('•', style: TextStyle(color: Colors.grey)),
@@ -1428,30 +1464,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           _showInfoDialog(
                             'Terms of Service',
                             'Terms of Service\n\n'
-                            'Last updated: May 29, 2025\n\n'
-                            'Please read these Terms of Service ("Terms") before using SpeedShare ("the App"). By using the App, you agree to be bound by these Terms.\n\n'
-                            '1. Use of the App\n'
-                            'SpeedShare is intended for sharing files between two computers over the same WiFi network. You are responsible for using the App in compliance with all applicable laws and regulations.\n\n'
-                            '2. User Responsibility\n'
-                            'You are solely responsible for the files you choose to share and receive. Do not use SpeedShare to transfer illegal, harmful, or infringing content.\n\n'
-                            '3. No Warranty\n'
-                            'SpeedShare is provided "as is" without any warranties. We do not guarantee that the App will be error-free or uninterrupted.\n\n'
-                            '4. Limitation of Liability\n'
-                            'We are not liable for any damages or losses resulting from the use of SpeedShare, including but not limited to data loss, unauthorized access, or network issues.\n\n'
-                            '5. Modifications\n'
-                            'We reserve the right to modify these Terms at any time. Continued use of the App after changes means you accept the new Terms.\n\n'
-                            '6. Contact Us\n'
-                            'If you have questions about these Terms, contact us at kumarnavinverma7@gmail.com.',
+                                'Last updated: May 29, 2025\n\n'
+                                'Please read these Terms of Service ("Terms") before using SpeedShare ("the App"). By using the App, you agree to be bound by these Terms.\n\n'
+                                '1. Use of the App\n'
+                                'SpeedShare is intended for sharing files between two computers over the same WiFi network. You are responsible for using the App in compliance with all applicable laws and regulations.\n\n'
+                                '2. User Responsibility\n'
+                                'You are solely responsible for the files you choose to share and receive. Do not use SpeedShare to transfer illegal, harmful, or infringing content.\n\n'
+                                '3. No Warranty\n'
+                                'SpeedShare is provided "as is" without any warranties. We do not guarantee that the App will be error-free or uninterrupted.\n\n'
+                                '4. Limitation of Liability\n'
+                                'We are not liable for any damages or losses resulting from the use of SpeedShare, including but not limited to data loss, unauthorized access, or network issues.\n\n'
+                                '5. Modifications\n'
+                                'We reserve the right to modify these Terms at any time. Continued use of the App after changes means you accept the new Terms.\n\n'
+                                '6. Contact Us\n'
+                                'If you have questions about these Terms, contact us at kumarnavinverma7@gmail.com.',
                           );
                         },
                         child: Text(
                           'Terms of Service',
-                          style: TextStyle(fontSize: (context.isMobile ? 10 : 11) * context.fontSizeMultiplier),
+                          style: TextStyle(
+                              fontSize: (context.isMobile ? 10 : 11) *
+                                  context.fontSizeMultiplier),
                         ),
                       ),
                     ],
                   ),
-                
+
                 SizedBox(height: context.isMobile ? 16 : 24),
 
                 // Navin Kumar's details and socials - Responsive
@@ -1468,23 +1506,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       'Navin Kumar',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: (context.isMobile ? 14 : 16) * context.fontSizeMultiplier,
+                        fontSize: (context.isMobile ? 14 : 16) *
+                            context.fontSizeMultiplier,
                       ),
                     ),
                     Text(
                       'Flutter Developer',
                       style: TextStyle(
-                        fontSize: (context.isMobile ? 11 : 13) * context.fontSizeMultiplier,
+                        fontSize: (context.isMobile ? 11 : 13) *
+                            context.fontSizeMultiplier,
                         color: Colors.grey,
                       ),
                     ),
                     SizedBox(height: context.isMobile ? 2 : 4),
                     InkWell(
-                      onTap: () => _launchUrl('mailto:kumarnavinverma7@gmail.com'),
+                      onTap: () =>
+                          _launchUrl('mailto:kumarnavinverma7@gmail.com'),
                       child: Text(
                         'kumarnavinverma7@gmail.com',
                         style: TextStyle(
-                          fontSize: (context.isMobile ? 11 : 13) * context.fontSizeMultiplier,
+                          fontSize: (context.isMobile ? 11 : 13) *
+                              context.fontSizeMultiplier,
                           color: Color(0xFF4E6AF3),
                           decoration: TextDecoration.underline,
                         ),
@@ -1500,7 +1542,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             size: context.isMobile ? 16 : 20,
                           ),
                           tooltip: 'GitHub',
-                          onPressed: () => _launchUrl('https://github.com/navin280123'),
+                          onPressed: () =>
+                              _launchUrl('https://github.com/navin280123'),
                         ),
                         IconButton(
                           icon: Icon(
@@ -1508,7 +1551,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             size: context.isMobile ? 16 : 20,
                           ),
                           tooltip: 'LinkedIn',
-                          onPressed: () => _launchUrl('https://www.linkedin.com/in/navin-kumar-verma/'),
+                          onPressed: () => _launchUrl(
+                              'https://www.linkedin.com/in/navin-kumar-verma/'),
                         ),
                         IconButton(
                           icon: Icon(
@@ -1516,7 +1560,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             size: context.isMobile ? 16 : 20,
                           ),
                           tooltip: 'Instagram',
-                          onPressed: () => _launchUrl('https://www.instagram.com/navin.2801/'),
+                          onPressed: () => _launchUrl(
+                              'https://www.instagram.com/navin.2801/'),
                         ),
                       ],
                     ),

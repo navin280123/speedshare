@@ -1,37 +1,36 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:speedshare/MainScreen.dart';
-import 'package:window_size/window_size.dart' as window_size;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
 
+// window_size is a desktop-only package — import it conditionally
+import 'package:window_size/window_size.dart' as window_size
+    if (dart.library.html) 'package:speedshare/stubs/window_size_stub.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Set responsive window size for desktop platforms
-  if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+
+  // Set responsive window size for desktop platforms only
+  // window_size does NOT exist on Android/iOS — guard with Platform checks
+  if (!kIsWeb &&
+      (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
     window_size.setWindowTitle('SpeedShare');
-    
-    // Responsive window constraints
-    // Minimum size: Mobile-like experience
     window_size.setWindowMinSize(const Size(360, 640));
-    
-    // Maximum size: Large desktop experience  
     window_size.setWindowMaxSize(const Size(1920, 1080));
-    
-    // Default starting size: Tablet-like experience
     window_size.setWindowFrame(const Rect.fromLTWH(100, 100, 1024, 768));
   }
-  
+
   // Load settings
   final prefs = await SharedPreferences.getInstance();
   final bool darkMode = prefs.getBool('darkMode') ?? false;
-  
+
   runApp(MyApp(darkMode: darkMode));
 }
 
 class MyApp extends StatefulWidget {
   final bool darkMode;
-  
+
   const MyApp({super.key, required this.darkMode});
 
   @override
@@ -40,18 +39,15 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   late bool _darkMode;
-  
+
   @override
   void initState() {
     super.initState();
     _darkMode = widget.darkMode;
-    
-    // Listen for settings changes
     _listenForThemeChanges();
   }
-  
+
   void _listenForThemeChanges() async {
-    // Listen for theme changes every second (you can optimize this)
     while (mounted) {
       await Future.delayed(const Duration(seconds: 1));
       if (mounted) {
@@ -65,7 +61,7 @@ class _MyAppState extends State<MyApp> {
       }
     }
   }
-  
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -73,13 +69,13 @@ class _MyAppState extends State<MyApp> {
       theme: _buildLightTheme(),
       darkTheme: _buildDarkTheme(),
       themeMode: _darkMode ? ThemeMode.dark : ThemeMode.light,
-      home: ResponsiveWrapper(
+      home: const ResponsiveWrapper(
         child: MainScreen(),
       ),
       debugShowCheckedModeBanner: false,
     );
   }
-  
+
   ThemeData _buildLightTheme() {
     return ThemeData(
       brightness: Brightness.light,
@@ -97,7 +93,7 @@ class _MyAppState extends State<MyApp> {
       scaffoldBackgroundColor: Colors.grey[50],
     );
   }
-  
+
   ThemeData _buildDarkTheme() {
     return ThemeData(
       brightness: Brightness.dark,
@@ -115,7 +111,7 @@ class _MyAppState extends State<MyApp> {
       scaffoldBackgroundColor: const Color(0xFF121212),
     );
   }
-  
+
   CardThemeData _buildCardTheme() {
     return CardThemeData(
       elevation: 2,
@@ -124,7 +120,7 @@ class _MyAppState extends State<MyApp> {
       ),
     );
   }
-  
+
   ElevatedButtonThemeData _buildElevatedButtonTheme() {
     return ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
@@ -136,7 +132,7 @@ class _MyAppState extends State<MyApp> {
       ),
     );
   }
-  
+
   OutlinedButtonThemeData _buildOutlinedButtonTheme() {
     return OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
@@ -149,22 +145,21 @@ class _MyAppState extends State<MyApp> {
   }
 }
 
-// Responsive wrapper widget to handle different screen sizes
+// ─── Responsive System ───────────────────────────────────────────────────────
+
 class ResponsiveWrapper extends StatelessWidget {
   final Widget child;
-  
+
   const ResponsiveWrapper({super.key, required this.child});
-  
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Define breakpoints
         const double mobileBreakpoint = 600;
         const double tabletBreakpoint = 1024;
         const double desktopBreakpoint = 1440;
-        
-        // Determine screen type
+
         ScreenType screenType;
         if (constraints.maxWidth < mobileBreakpoint) {
           screenType = ScreenType.mobile;
@@ -175,7 +170,7 @@ class ResponsiveWrapper extends StatelessWidget {
         } else {
           screenType = ScreenType.largeDesktop;
         }
-        
+
         return ResponsiveProvider(
           screenType: screenType,
           screenWidth: constraints.maxWidth,
@@ -187,20 +182,13 @@ class ResponsiveWrapper extends StatelessWidget {
   }
 }
 
-// Screen type enum
-enum ScreenType {
-  mobile,
-  tablet,
-  desktop,
-  largeDesktop,
-}
+enum ScreenType { mobile, tablet, desktop, largeDesktop }
 
-// Responsive provider for accessing screen info throughout the app
 class ResponsiveProvider extends InheritedWidget {
   final ScreenType screenType;
   final double screenWidth;
   final double screenHeight;
-  
+
   const ResponsiveProvider({
     super.key,
     required this.screenType,
@@ -208,32 +196,30 @@ class ResponsiveProvider extends InheritedWidget {
     required this.screenHeight,
     required super.child,
   });
-  
+
   static ResponsiveProvider? of(BuildContext context) {
     return context.dependOnInheritedWidgetOfExactType<ResponsiveProvider>();
   }
-  
+
   @override
   bool updateShouldNotify(ResponsiveProvider oldWidget) {
     return screenType != oldWidget.screenType ||
-           screenWidth != oldWidget.screenWidth ||
-           screenHeight != oldWidget.screenHeight;
+        screenWidth != oldWidget.screenWidth ||
+        screenHeight != oldWidget.screenHeight;
   }
 }
 
-// Helper extension for easy responsive access
 extension ResponsiveContext on BuildContext {
   ResponsiveProvider get responsive => ResponsiveProvider.of(this)!;
   ScreenType get screenType => responsive.screenType;
   double get screenWidth => responsive.screenWidth;
   double get screenHeight => responsive.screenHeight;
-  
+
   bool get isMobile => screenType == ScreenType.mobile;
   bool get isTablet => screenType == ScreenType.tablet;
   bool get isDesktop => screenType == ScreenType.desktop;
   bool get isLargeDesktop => screenType == ScreenType.largeDesktop;
-  
-  // Responsive padding
+
   EdgeInsets get responsivePadding {
     switch (screenType) {
       case ScreenType.mobile:
@@ -246,8 +232,7 @@ extension ResponsiveContext on BuildContext {
         return const EdgeInsets.all(48);
     }
   }
-  
-  // Responsive font size multiplier
+
   double get fontSizeMultiplier {
     switch (screenType) {
       case ScreenType.mobile:
@@ -260,8 +245,7 @@ extension ResponsiveContext on BuildContext {
         return 1.2;
     }
   }
-  
-  // Maximum content width for readability
+
   double get maxContentWidth {
     switch (screenType) {
       case ScreenType.mobile:

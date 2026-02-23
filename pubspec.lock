@@ -2,7 +2,7 @@
 # See https://dart.dev/tools/pub/glossary#lockfile
 packages:
   animate_do:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: animate_do
       sha256: e5c8b92e8495cba5adfff17c0b017d50f46b2766226e9faaf68bc08c91aef034
@@ -98,13 +98,13 @@ packages:
     source: hosted
     version: "0.7.10"
   desktop_drop:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: desktop_drop
-      sha256: bd21017e0415632c85f6b813c846bc8c9811742507776dcf6abf91a14d946e98
+      sha256: "927511f590ce01ee90d0d80f79bc71b9c919d8522d01e495e89a00c6f4a4fb5b"
       url: "https://pub.dev"
     source: hosted
-    version: "0.6.0"
+    version: "0.6.1"
   fake_async:
     dependency: transitive
     description:
@@ -130,7 +130,7 @@ packages:
     source: hosted
     version: "7.0.1"
   file_picker:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: file_picker
       sha256: "16dc141db5a2ccc6520ebb6a2eb5945b1b09e95085c021d9f914f8ded7f1465c"
@@ -159,7 +159,7 @@ packages:
     source: hosted
     version: "2.0.23"
   flutter_spinkit:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: flutter_spinkit
       sha256: d2696eed13732831414595b98863260e33e8882fc069ee80ec35d4ac9ddb0472
@@ -177,7 +177,7 @@ packages:
     source: sdk
     version: "0.0.0"
   google_fonts:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: google_fonts
       sha256: b1ac0fe2832c9cc95e5e88b57d627c5e68c223b9657f4b96e1487aa9098c7b82
@@ -185,7 +185,7 @@ packages:
     source: hosted
     version: "6.2.1"
   http:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: http
       sha256: "2c11f3f94c687ee9bad77c171151672986360b2b001d109814ee7140b2cf261b"
@@ -201,7 +201,7 @@ packages:
     source: hosted
     version: "4.1.2"
   intl:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: intl
       sha256: "3bc132a9dbce73a7e4a21a17d06e1878839ffbf975568bc875c60537824b0c4d"
@@ -241,7 +241,7 @@ packages:
     source: hosted
     version: "4.0.0"
   lottie:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: lottie
       sha256: c5fa04a80a620066c15cf19cc44773e19e9b38e989ff23ea32e5903ef1015950
@@ -273,7 +273,7 @@ packages:
     source: hosted
     version: "1.17.0"
   mime:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: mime
       sha256: "41a20518f0cb1256669420fdba0cd90d21561e560ac240f26ef8322e45bb7ed6"
@@ -281,7 +281,7 @@ packages:
     source: hosted
     version: "2.0.0"
   network_info_plus:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: network_info_plus
       sha256: bf9e39e523e9951d741868dc33ac386b0bc24301e9b7c8a7d60dbc34879150a8
@@ -305,7 +305,7 @@ packages:
     source: hosted
     version: "0.5.0"
   open_file:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: open_file
       sha256: d17e2bddf5b278cb2ae18393d0496aa4f162142ba97d1a9e0c30d476adf99c0e
@@ -369,7 +369,7 @@ packages:
     source: hosted
     version: "0.0.3"
   path:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: path
       sha256: "75cca69d1490965be98c73ceaea117e8a04dd21217b37b292c9ddbec0d955bc5"
@@ -377,7 +377,7 @@ packages:
     source: hosted
     version: "1.9.1"
   path_provider:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: path_provider
       sha256: "50c5dd5b6e1aaf6fb3a78b33f6aa3afca52bf903a8a5298f53101fdaee55bbcd"
@@ -457,7 +457,7 @@ packages:
     source: hosted
     version: "6.0.2"
   shared_preferences:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: shared_preferences
       sha256: "6e8bf70b7fef813df4e9a36f658ac46d107db4b4cfe1048b477d4e453a8159f5"
@@ -582,7 +582,7 @@ packages:
     source: hosted
     version: "1.1.0"
   url_launcher:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: url_launcher
       sha256: "9d06212b1362abc2f0f0d78e6f09f726608c74e3b9462e8368bb03314aa8d603"
@@ -678,7 +678,7 @@ packages:
     source: hosted
     version: "5.8.0"
   window_size:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: window_size
       sha256: "8ba77a3df7bd686e60b21e699e60e1b103e6515950954b46c4fb6f513586e278"

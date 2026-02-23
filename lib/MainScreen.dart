@@ -16,14 +16,20 @@ class MainScreen extends StatefulWidget {
   State<MainScreen> createState() => _MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateMixin {
-  int _selectedIndex = -1;
+class _MainScreenState extends State<MainScreen>
+    with SingleTickerProviderStateMixin {
+  int _selectedIndex = 0;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   String computerName = '';
-  bool _isDrawerOpen = false;
 
   final List<Map<String, dynamic>> _sidebarOptions = [
+    {
+      'title': 'Home',
+      'icon': Icons.home_rounded,
+      'description': 'Dashboard',
+      'color': const Color(0xFF4E6AF3)
+    },
     {
       'title': 'Send',
       'icon': Icons.send_rounded,
@@ -92,17 +98,50 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
   Widget build(BuildContext context) {
     return Scaffold(
       // App bar for mobile and tablet
-      appBar: ResponsiveContext(context).isMobile || ResponsiveContext(context).isTablet ? _buildAppBar() : null,
+      appBar: ResponsiveContext(context).isMobile ||
+              ResponsiveContext(context).isTablet
+          ? _buildAppBar()
+          : null,
 
-      // Drawer for mobile
-      drawer: ResponsiveContext(context).isMobile ? _buildDrawer() : null,
+      // Drawer (removed from mobile since we use BottomTabBar now)
+      drawer: null,
 
       body: _buildBody(),
+
+      // Bottom tab bar for mobile
+      bottomNavigationBar: ResponsiveContext(context).isMobile
+          ? _buildBottomNavigationBar()
+          : null,
+    );
+  }
+
+  Widget _buildBottomNavigationBar() {
+    return BottomNavigationBar(
+      currentIndex:
+          _selectedIndex >= 0 && _selectedIndex < _sidebarOptions.length
+              ? _selectedIndex
+              : 0,
+      onTap: _selectOption,
+      type: BottomNavigationBarType.fixed,
+      selectedItemColor:
+          _selectedIndex >= 0 && _selectedIndex < _sidebarOptions.length
+              ? _sidebarOptions[_selectedIndex]['color']
+              : Theme.of(context).primaryColor,
+      unselectedItemColor: Colors.grey.withValues(alpha: 0.6),
+      showSelectedLabels: true,
+      showUnselectedLabels: true,
+      items: _sidebarOptions.map((option) {
+        return BottomNavigationBarItem(
+          icon: Icon(option['icon']),
+          label: option['title'],
+        );
+      }).toList(),
     );
   }
 
   AppBar? _buildAppBar() {
-    if (!ResponsiveContext(context).isMobile && !ResponsiveContext(context).isTablet) return null;
+    if (!ResponsiveContext(context).isMobile &&
+        !ResponsiveContext(context).isTablet) return null;
 
     return AppBar(
       title: Row(
@@ -141,7 +180,8 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
           ),
         ],
       ),
-      actions: ResponsiveContext(context).isTablet ? _buildTabletActions() : null,
+      actions:
+          ResponsiveContext(context).isTablet ? _buildTabletActions() : null,
       elevation: 2,
     );
   }
@@ -151,7 +191,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
       int index = entry.key;
       Map<String, dynamic> option = entry.value;
       bool isSelected = _selectedIndex == index;
-      
+
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4),
         child: IconButton(
@@ -162,12 +202,6 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
         ),
       );
     }).toList();
-  }
-
-  Drawer _buildDrawer() {
-    return Drawer(
-      child: _buildSidebarContent(),
-    );
   }
 
   Widget _buildBody() {
@@ -232,10 +266,12 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
     return Column(
       children: [
         // Logo/Title section - only show in desktop sidebar
-        if (ResponsiveContext(context).isDesktop || ResponsiveContext(context).isLargeDesktop)
+        if (ResponsiveContext(context).isDesktop ||
+            ResponsiveContext(context).isLargeDesktop)
           _buildLogoSection(),
 
-        if (ResponsiveContext(context).isDesktop || ResponsiveContext(context).isLargeDesktop)
+        if (ResponsiveContext(context).isDesktop ||
+            ResponsiveContext(context).isLargeDesktop)
           const Divider(height: 1),
 
         // Menu options
@@ -251,7 +287,8 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
         ),
 
         // Device info - only show in desktop sidebar
-        if (ResponsiveContext(context).isDesktop || ResponsiveContext(context).isLargeDesktop)
+        if (ResponsiveContext(context).isDesktop ||
+            ResponsiveContext(context).isLargeDesktop)
           _buildDeviceInfo(),
       ],
     );
@@ -308,9 +345,9 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
             'Fast File Transfers',
             style: TextStyle(
               fontSize: context.isLargeDesktop ? 13 : 11,
-              color: Theme.of(context).brightness == Brightness.dark 
-                ? Colors.grey[400] 
-                : Colors.grey[600],
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.grey[400]
+                  : Colors.grey[600],
             ),
             overflow: TextOverflow.ellipsis,
           ),
@@ -328,16 +365,16 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
         bottom: ResponsiveContext(context).isMobile ? 8 : 6,
       ),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(ResponsiveContext(context).isMobile ? 12 : 8),
-        color: isSelected 
-          ? option['color'].withOpacity(0.1)
-          : Colors.transparent,
+        borderRadius:
+            BorderRadius.circular(ResponsiveContext(context).isMobile ? 12 : 8),
+        color:
+            isSelected ? option['color'].withOpacity(0.1) : Colors.transparent,
       ),
       child: ListTile(
         dense: !ResponsiveContext(context).isMobile,
-        visualDensity: ResponsiveContext(context).isMobile 
-          ? VisualDensity.standard 
-          : VisualDensity.compact,
+        visualDensity: ResponsiveContext(context).isMobile
+            ? VisualDensity.standard
+            : VisualDensity.compact,
         contentPadding: EdgeInsets.symmetric(
           horizontal: ResponsiveContext(context).isMobile ? 16 : 8,
           vertical: ResponsiveContext(context).isMobile ? 8 : 2,
@@ -345,12 +382,13 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
         leading: Container(
           padding: EdgeInsets.all(ResponsiveContext(context).isMobile ? 8 : 6),
           decoration: BoxDecoration(
-            color: isSelected 
-              ? option['color'].withOpacity(0.2)
-              : Theme.of(context).brightness == Brightness.dark
-                ? Colors.grey[800]
-                : Colors.grey[200],
-            borderRadius: BorderRadius.circular(ResponsiveContext(context).isMobile ? 8 : 6),
+            color: isSelected
+                ? option['color'].withOpacity(0.2)
+                : Theme.of(context).brightness == Brightness.dark
+                    ? Colors.grey[800]
+                    : Colors.grey[200],
+            borderRadius: BorderRadius.circular(
+                ResponsiveContext(context).isMobile ? 8 : 6),
           ),
           child: Icon(
             option['icon'],
@@ -367,21 +405,24 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
           ),
           overflow: TextOverflow.ellipsis,
         ),
-        subtitle: ResponsiveContext(context).isMobile ? null : Text(
-          option['description'],
-          style: TextStyle(
-            fontSize: 11,
-            color: Theme.of(context).brightness == Brightness.dark 
-              ? Colors.grey[400] 
-              : Colors.grey[600],
-          ),
-          overflow: TextOverflow.ellipsis,
-        ),
+        subtitle: ResponsiveContext(context).isMobile
+            ? null
+            : Text(
+                option['description'],
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.grey[400]
+                      : Colors.grey[600],
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
         trailing: isSelected && !ResponsiveContext(context).isMobile
-          ? Icon(Icons.arrow_forward_ios, size: 12, color: option['color']) 
-          : null,
+            ? Icon(Icons.arrow_forward_ios, size: 12, color: option['color'])
+            : null,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(ResponsiveContext(context).isMobile ? 12 : 8),
+          borderRadius: BorderRadius.circular(
+              ResponsiveContext(context).isMobile ? 12 : 8),
         ),
         onTap: () => _selectOption(index),
       ),
@@ -434,17 +475,20 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                     StreamBuilder<String>(
                       stream: Stream.periodic(
                         const Duration(seconds: 1),
-                        (_) => DateFormat('MMM dd, HH:mm:ss').format(DateTime.now()),
+                        (_) => DateFormat('MMM dd, HH:mm:ss')
+                            .format(DateTime.now()),
                       ),
-                      initialData: DateFormat('MMM dd, HH:mm:ss').format(DateTime.now()),
+                      initialData:
+                          DateFormat('MMM dd, HH:mm:ss').format(DateTime.now()),
                       builder: (context, snapshot) {
                         return Text(
                           snapshot.data!,
                           style: TextStyle(
                             fontSize: context.isLargeDesktop ? 11 : 10,
-                            color: Theme.of(context).brightness == Brightness.dark 
-                              ? Colors.grey[400] 
-                              : Colors.grey[600],
+                            color:
+                                Theme.of(context).brightness == Brightness.dark
+                                    ? Colors.grey[400]
+                                    : Colors.grey[600],
                           ),
                           overflow: TextOverflow.ellipsis,
                         );
@@ -466,7 +510,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
       _animationController.reset();
       _animationController.forward();
     });
-    
+
     // Close drawer on mobile after selection
     if (ResponsiveContext(context).isMobile && Navigator.canPop(context)) {
       Navigator.pop(context);
@@ -474,22 +518,20 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
   }
 
   Widget _buildRightPanel() {
-    if (_selectedIndex == -1) {
-      return _buildWelcomeScreen();
-    }
-
     // Show the selected screen
     switch (_selectedIndex) {
       case 0:
-        return FileSenderScreen();
+        return _buildWelcomeScreen();
       case 1:
-        return ReceiveScreen();
+        return FileSenderScreen();
       case 2:
-        return SyncScreen();
+        return ReceiveScreen();
       case 3:
+        return SyncScreen();
+      case 4:
         return SettingsScreen();
       default:
-        return Container();
+        return _buildWelcomeScreen();
     }
   }
 
@@ -518,7 +560,9 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                           height: _calculateLottieHeight(),
                           fit: BoxFit.contain,
                         ),
-                        SizedBox(height: ResponsiveContext(context).isMobile ? 16 : 20),
+                        SizedBox(
+                            height:
+                                ResponsiveContext(context).isMobile ? 16 : 20),
                         ShaderMask(
                           shaderCallback: (bounds) => const LinearGradient(
                             colors: [Color(0xFF4E6AF3), Color(0xFF2AB673)],
@@ -535,7 +579,9 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                             textAlign: TextAlign.center,
                           ),
                         ),
-                        SizedBox(height: ResponsiveContext(context).isMobile ? 8 : 12),
+                        SizedBox(
+                            height:
+                                ResponsiveContext(context).isMobile ? 8 : 12),
                         Text(
                           'Share files between devices quickly and easily.\nNo internet required - just connect to the same network.',
                           textAlign: TextAlign.center,
@@ -544,12 +590,16 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                             height: 1.4,
                           ),
                         ),
-                        SizedBox(height: ResponsiveContext(context).isMobile ? 20 : 24),
+                        SizedBox(
+                            height:
+                                ResponsiveContext(context).isMobile ? 20 : 24),
 
                         // Feature items
                         _buildFeatureItems(),
 
-                        SizedBox(height: ResponsiveContext(context).isMobile ? 20 : 24),
+                        SizedBox(
+                            height:
+                                ResponsiveContext(context).isMobile ? 20 : 24),
 
                         // Action buttons
                         _buildActionButtons(),
@@ -598,7 +648,8 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
         children: features
             .map((feature) => Padding(
                   padding: const EdgeInsets.only(bottom: 16),
-                  child: _buildFeatureItem(feature['icon'] as IconData, feature['text'] as String),
+                  child: _buildFeatureItem(
+                      feature['icon'] as IconData, feature['text'] as String),
                 ))
             .toList(),
       );
@@ -609,7 +660,8 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
       spacing: ResponsiveContext(context).isMobile ? 16 : 20,
       runSpacing: 16,
       children: features
-          .map((feature) => _buildFeatureItem(feature['icon'] as IconData, feature['text'] as String))
+          .map((feature) => _buildFeatureItem(
+              feature['icon'] as IconData, feature['text'] as String))
           .toList(),
     );
   }
@@ -621,7 +673,8 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
           ? Row(
               children: [
                 Container(
-                  padding: EdgeInsets.all(ResponsiveContext(context).isMobile ? 12 : 10),
+                  padding: EdgeInsets.all(
+                      ResponsiveContext(context).isMobile ? 12 : 10),
                   decoration: BoxDecoration(
                     color: const Color(0xFF4E6AF3).withOpacity(0.1),
                     shape: BoxShape.circle,
@@ -664,8 +717,8 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                   text,
                   style: TextStyle(
                     fontSize: 12,
-                    color: Theme.of(context).brightness == Brightness.dark 
-                        ? Colors.grey[300] 
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.grey[300]
                         : Colors.grey[700],
                   ),
                   textAlign: TextAlign.center,
@@ -682,13 +735,13 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
         'text': 'Send Files',
         'icon': Icons.send_rounded,
         'color': const Color(0xFF4E6AF3),
-        'index': 0,
+        'index': 1,
       },
       {
         'text': 'Receive Files',
         'icon': Icons.download_rounded,
         'color': const Color(0xFF2AB673),
-        'index': 1,
+        'index': 2,
       },
     ];
 
@@ -726,13 +779,15 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
     );
   }
 
-  Widget _buildActionButton(String text, IconData icon, Color color, VoidCallback onTap) {
+  Widget _buildActionButton(
+      String text, IconData icon, Color color, VoidCallback onTap) {
     return ElevatedButton.icon(
       onPressed: onTap,
       icon: Icon(icon, size: ResponsiveContext(context).isMobile ? 18 : 16),
       label: Text(
         text,
-        style: TextStyle(fontSize: ResponsiveContext(context).isMobile ? 14 : 13),
+        style:
+            TextStyle(fontSize: ResponsiveContext(context).isMobile ? 14 : 13),
       ),
       style: ElevatedButton.styleFrom(
         foregroundColor: Colors.white,
@@ -743,7 +798,8 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
         ),
         elevation: 2,
         shadowColor: color.withAlpha((0.4 * 255).toInt()),
-        minimumSize: Size(ResponsiveContext(context).isMobile ? double.infinity : 120, 0),
+        minimumSize: Size(
+            ResponsiveContext(context).isMobile ? double.infinity : 120, 0),
       ),
     );
   }

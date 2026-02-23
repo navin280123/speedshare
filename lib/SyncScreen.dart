@@ -1,18 +1,22 @@
 import 'dart:io';
 import 'dart:convert';
 import 'dart:async';
-import 'dart:typed_data';
+import 'dart:math';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:animate_do/animate_do.dart';
 import 'package:lottie/lottie.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:mime/mime.dart';
 import 'package:speedshare/main.dart';
+
+/// True when on a desktop platform (reusePort is only available on non-Windows).
+bool get _supportsReusePort =>
+    !kIsWeb && (Platform.isMacOS || Platform.isLinux);
 
 class SyncScreen extends StatefulWidget {
   @override
@@ -26,7 +30,7 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
   static const int MAX_FILE_SIZE = 10 * 1024 * 1024 * 1024; // 10GB
   static const int DISCOVERY_INTERVAL = 10; // seconds
   static const int DEVICE_TIMEOUT = 5; // minutes
-  
+
   // Storage Server
   HttpServer? _storageServer;
   RawDatagramSocket? _syncDiscoverySocket;
@@ -35,25 +39,25 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
   List<String> _sharedPaths = [];
   List<SyncSession> _activeSessions = [];
   int _actualServerPort = SYNC_HTTP_PORT_START;
-  
+
   // Storage Browser
   List<SyncDevice> _availableDevices = [];
   bool _isDiscovering = false;
   Timer? _discoveryTimer;
-  
+
   // UI State
   late TabController _tabController;
-  String _selectedDirectory = '';
+  // _selectedDirectory: reserved for future directory browser feature
   SyncDevice? _selectedDevice;
   List<RemoteFileInfo> _remoteFiles = [];
   bool _isBrowsingFiles = false;
   String _currentRemotePath = '/';
   List<DownloadTask> _downloadQueue = [];
-  
+
   // Dynamic values instead of hardcoded
   String get currentDateTime => DateTime.now().toString();
   String get userLogin => Platform.localHostname;
-  
+
   @override
   void initState() {
     super.initState();
@@ -67,24 +71,26 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
     try {
       // Close existing socket if any
       _syncDiscoverySocket?.close();
-      
+
       print('Initializing UDP discovery socket...');
-      
+
       // Initialize sync discovery socket with proper error handling
       _syncDiscoverySocket = await RawDatagramSocket.bind(
         InternetAddress.anyIPv4,
         SYNC_UDP_PORT,
         reuseAddress: true,
-        reusePort: true,
+        // reusePort is not supported on Windows — only enable on macOS/Linux
+        reusePort: _supportsReusePort,
       );
-      
+
       _syncDiscoverySocket!.broadcastEnabled = true;
-      
+
       _syncDiscoverySocket!.listen((event) {
         if (event == RawSocketEvent.read) {
           final datagram = _syncDiscoverySocket!.receive();
           if (datagram != null) {
-            print('Received discovery message from ${datagram.address.address}');
+            print(
+                'Received discovery message from ${datagram.address.address}');
             _handleSyncDiscovery(datagram);
           }
         }
@@ -96,8 +102,9 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
           Colors.red,
         );
       });
-      
-      print('UDP Discovery socket initialized successfully on port $SYNC_UDP_PORT');
+
+      print(
+          'UDP Discovery socket initialized successfully on port $SYNC_UDP_PORT');
     } catch (e) {
       print('Error initializing sync on port $SYNC_UDP_PORT: $e');
       // Try alternative port if main port is busy
@@ -106,23 +113,26 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
           InternetAddress.anyIPv4,
           SYNC_UDP_PORT + 1,
           reuseAddress: true,
-          reusePort: true,
+          // reusePort is not supported on Windows
+          reusePort: _supportsReusePort,
         );
         _syncDiscoverySocket!.broadcastEnabled = true;
-        
+
         _syncDiscoverySocket!.listen((event) {
           if (event == RawSocketEvent.read) {
             final datagram = _syncDiscoverySocket!.receive();
             if (datagram != null) {
-              print('Received discovery message from ${datagram.address.address} (alt port)');
+              print(
+                  'Received discovery message from ${datagram.address.address} (alt port)');
               _handleSyncDiscovery(datagram);
             }
           }
         }, onError: (error) {
           print('UDP Discovery error on alt port: $error');
         });
-        
-        print('UDP Discovery socket initialized on alternative port ${SYNC_UDP_PORT + 1}');
+
+        print(
+            'UDP Discovery socket initialized on alternative port ${SYNC_UDP_PORT + 1}');
       } catch (e2) {
         print('Failed to initialize UDP socket on alternative port: $e2');
         _showSnackBar(
@@ -138,18 +148,18 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
     try {
       final message = utf8.decode(datagram.data);
       print('Received raw message: $message from ${datagram.address.address}');
-      
+
       final data = json.decode(message) as Map<String, dynamic>;
-      
+
       if (data['type'] == 'SPEEDSHARE_SYNC_ANNOUNCE') {
         // Validate required fields
-        if (!data.containsKey('deviceName') || 
-            !data.containsKey('storagePort') || 
+        if (!data.containsKey('deviceName') ||
+            !data.containsKey('storagePort') ||
             !data.containsKey('accessCode')) {
           print('Invalid announcement message: missing required fields');
           return;
         }
-        
+
         final device = SyncDevice(
           name: data['deviceName'],
           ip: datagram.address.address,
@@ -158,9 +168,10 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
           capabilities: List<String>.from(data['capabilities'] ?? []),
           lastSeen: DateTime.now(),
         );
-        
-        print('Found device: ${device.name} at ${device.ip}:${device.port} with code: ${device.accessCode}');
-        
+
+        print(
+            'Found device: ${device.name} at ${device.ip}:${device.port} with code: ${device.accessCode}');
+
         setState(() {
           _availableDevices.removeWhere((d) => d.ip == device.ip);
           _availableDevices.add(device);
@@ -206,7 +217,8 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
 
   void _startDiscovery() {
     print('Starting discovery timer...');
-    _discoveryTimer = Timer.periodic(Duration(seconds: DISCOVERY_INTERVAL), (timer) {
+    _discoveryTimer =
+        Timer.periodic(Duration(seconds: DISCOVERY_INTERVAL), (timer) {
       _sendSyncAnnouncement();
       _cleanupStaleDevices();
     });
@@ -215,10 +227,11 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
 
   void _sendSyncAnnouncement() {
     if (_syncDiscoverySocket == null || !_isStorageSharing) {
-      print('Skipping announcement: socket=${_syncDiscoverySocket != null}, sharing=$_isStorageSharing');
+      print(
+          'Skipping announcement: socket=${_syncDiscoverySocket != null}, sharing=$_isStorageSharing');
       return;
     }
-    
+
     try {
       final announcement = json.encode({
         'type': 'SPEEDSHARE_SYNC_ANNOUNCE',
@@ -230,17 +243,16 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
         'version': '1.0.0',
         'user': userLogin,
       });
-      
+
       final data = utf8.encode(announcement);
-      
+
       print('Sending announcement: $announcement');
-      
+
       // Send to broadcast addresses
       _sendToBroadcastAddresses(data);
-      
+
       // Also try sending to local network interfaces
       _sendToLocalInterfaces(data);
-      
     } catch (e) {
       print('Error sending sync announcement: $e');
     }
@@ -249,24 +261,26 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
   void _sendToBroadcastAddresses(List<int> data) {
     final broadcastAddresses = [
       '255.255.255.255', // Global broadcast
-      '192.168.1.255',   // Common subnet
-      '192.168.0.255',   // Common subnet
-      '10.0.0.255',      // Common subnet
-      '172.16.255.255',  // Private network
+      '192.168.1.255', // Common subnet
+      '192.168.0.255', // Common subnet
+      '10.0.0.255', // Common subnet
+      '172.16.255.255', // Private network
     ];
-    
+
     int successCount = 0;
     for (String address in broadcastAddresses) {
       try {
-        _syncDiscoverySocket!.send(data, InternetAddress(address), SYNC_UDP_PORT);
-        _syncDiscoverySocket!.send(data, InternetAddress(address), SYNC_UDP_PORT + 1);
+        _syncDiscoverySocket!
+            .send(data, InternetAddress(address), SYNC_UDP_PORT);
+        _syncDiscoverySocket!
+            .send(data, InternetAddress(address), SYNC_UDP_PORT + 1);
         successCount++;
         print('Sent announcement to $address');
       } catch (e) {
         print('Failed to send to $address: $e');
       }
     }
-    
+
     print('Announcement sent to $successCount broadcast addresses');
   }
 
@@ -280,8 +294,10 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
               final parts = addr.address.split('.');
               if (parts.length == 4) {
                 final broadcastAddr = '${parts[0]}.${parts[1]}.${parts[2]}.255';
-                _syncDiscoverySocket!.send(data, InternetAddress(broadcastAddr), SYNC_UDP_PORT);
-                _syncDiscoverySocket!.send(data, InternetAddress(broadcastAddr), SYNC_UDP_PORT + 1);
+                _syncDiscoverySocket!
+                    .send(data, InternetAddress(broadcastAddr), SYNC_UDP_PORT);
+                _syncDiscoverySocket!.send(
+                    data, InternetAddress(broadcastAddr), SYNC_UDP_PORT + 1);
                 print('Sent to interface broadcast: $broadcastAddr');
               }
             } catch (e) {
@@ -320,19 +336,20 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
 
     try {
       print('Starting storage sharing...');
-      
+
       // Close existing server if any
       await _storageServer?.close();
-      
+
       _accessCode = _generateAccessCode();
-      
+
       // Try to bind to port with fallback options
       HttpServer? server;
       int port = SYNC_HTTP_PORT_START;
-      
+
       for (int attempts = 0; attempts < 5; attempts++) {
         try {
-          server = await HttpServer.bind(InternetAddress.anyIPv4, port + attempts);
+          server =
+              await HttpServer.bind(InternetAddress.anyIPv4, port + attempts);
           _actualServerPort = port + attempts;
           break;
         } catch (e) {
@@ -340,36 +357,39 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
           if (attempts == 4) rethrow;
         }
       }
-      
+
       _storageServer = server;
-      
+
       // Add CORS headers for web compatibility
       _storageServer!.listen((request) {
         print('Received ${request.method} request: ${request.uri}');
-        
+
         // Add CORS headers
         request.response.headers.add('Access-Control-Allow-Origin', '*');
-        request.response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-        request.response.headers.add('Access-Control-Allow-Headers', 'Content-Type');
-        
+        request.response.headers
+            .add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+        request.response.headers
+            .add('Access-Control-Allow-Headers', 'Content-Type');
+
         if (request.method == 'OPTIONS') {
           request.response.statusCode = 200;
           request.response.close();
           return;
         }
-        
+
         _handleStorageRequest(request);
       });
-      
+
       setState(() {
         _isStorageSharing = true;
       });
-      
-      print('Storage server started on port $_actualServerPort with access code: $_accessCode');
-      
+
+      print(
+          'Storage server started on port $_actualServerPort with access code: $_accessCode');
+
       // Start sending announcements
       _sendSyncAnnouncement();
-      
+
       _showSnackBar(
         'Storage sharing started on port $_actualServerPort',
         Icons.check_circle_rounded,
@@ -391,12 +411,12 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
       await _storageServer?.close();
       _storageServer = null;
       _accessCode = null;
-      
+
       setState(() {
         _isStorageSharing = false;
         _activeSessions.clear();
       });
-      
+
       print('Storage sharing stopped');
       _showSnackBar(
         'Storage sharing stopped',
@@ -417,11 +437,12 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
     try {
       final uri = request.uri;
       final accessCode = uri.queryParameters['code'];
-      
+
       print('Handling request: ${uri.path} with code: $accessCode');
-      
+
       if (accessCode != _accessCode) {
-        print('Invalid access code provided: $accessCode, expected: $_accessCode');
+        print(
+            'Invalid access code provided: $accessCode, expected: $_accessCode');
         request.response.statusCode = 403;
         request.response.write('Invalid access code');
         await request.response.close();
@@ -448,18 +469,20 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
   Future<void> _handleFileListRequest(HttpRequest request) async {
     final path = request.uri.queryParameters['path'] ?? '/';
     final files = <Map<String, dynamic>>[];
-    
+
     print('Listing files for path: $path');
-    
+
     try {
       for (final sharedPath in _sharedPaths) {
         print('Checking shared path: $sharedPath');
-        
-        final targetPath = path == '/' ? sharedPath : p.join(sharedPath, path.replaceFirst('/', ''));
+
+        final targetPath = path == '/'
+            ? sharedPath
+            : p.join(sharedPath, path.replaceFirst('/', ''));
         final directory = Directory(targetPath);
-        
+
         print('Target directory: ${directory.path}');
-        
+
         if (await directory.exists()) {
           await for (final entity in directory.list()) {
             try {
@@ -470,7 +493,10 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
                 'isDirectory': entity is Directory,
                 'size': entity is File ? stat.size : 0,
                 'modified': stat.modified.toIso8601String(),
-                'type': entity is File ? (lookupMimeType(entity.path) ?? 'application/octet-stream') : 'directory',
+                'type': entity is File
+                    ? (lookupMimeType(entity.path) ??
+                        'application/octet-stream')
+                    : 'directory',
               };
               files.add(fileInfo);
               print('Added file: ${fileInfo['name']}');
@@ -482,7 +508,7 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
           print('Directory does not exist: ${directory.path}');
         }
       }
-      
+
       print('Returning ${files.length} files');
       request.response.headers.contentType = ContentType.json;
       request.response.write(json.encode(files));
@@ -491,15 +517,15 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
       request.response.statusCode = 500;
       request.response.write('Error listing files: $e');
     }
-    
+
     await request.response.close();
   }
 
   Future<void> _handleFileDownloadRequest(HttpRequest request) async {
     final filePath = request.uri.queryParameters['file'];
-    
+
     print('Download request for file: $filePath');
-    
+
     if (filePath == null || !_isPathAllowed(filePath)) {
       print('Access denied for file: $filePath');
       request.response.statusCode = 403;
@@ -507,12 +533,12 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
       await request.response.close();
       return;
     }
-    
+
     try {
       final file = File(filePath);
       if (await file.exists()) {
         final fileSize = await file.length();
-        
+
         // Validate file size
         if (fileSize > MAX_FILE_SIZE) {
           print('File too large: $filePath ($fileSize bytes)');
@@ -521,13 +547,14 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
           await request.response.close();
           return;
         }
-        
+
         print('Serving file: $filePath (${fileSize} bytes)');
-        
+
         request.response.headers.contentType = ContentType.binary;
         request.response.headers.add('Content-Length', fileSize.toString());
-        request.response.headers.add('Content-Disposition', 'attachment; filename="${p.basename(filePath)}"');
-        
+        request.response.headers.add('Content-Disposition',
+            'attachment; filename="${p.basename(filePath)}"');
+
         await file.openRead().pipe(request.response);
       } else {
         print('File not found: $filePath');
@@ -544,16 +571,17 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
   }
 
   bool _isPathAllowed(String filePath) {
-    final allowed = _sharedPaths.any((sharedPath) => filePath.startsWith(sharedPath));
+    final allowed =
+        _sharedPaths.any((sharedPath) => filePath.startsWith(sharedPath));
     print('Path $filePath allowed: $allowed');
     return allowed;
   }
 
   String _generateAccessCode() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    final random = DateTime.now().millisecondsSinceEpoch;
-    final code = List.generate(6, (index) => chars[(random + index) % chars.length]).join();
-    print('Generated access code: $code');
+    final rng = Random.secure();
+    final code =
+        List.generate(6, (_) => chars[rng.nextInt(chars.length)]).join();
     return code;
   }
 
@@ -614,36 +642,39 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
       _isBrowsingFiles = true;
       _currentRemotePath = '/';
     });
-    
+
     await _loadRemoteFiles('/');
   }
 
   Future<void> _loadRemoteFiles(String path) async {
     if (_selectedDevice == null) return;
-    
+
     print('Loading remote files from path: $path');
-    
+
     try {
-      final url = 'http://${_selectedDevice!.ip}:${_selectedDevice!.port}/api/files?path=${Uri.encodeComponent(path)}&code=${_selectedDevice!.accessCode}';
+      final url =
+          'http://${_selectedDevice!.ip}:${_selectedDevice!.port}/api/files?path=${Uri.encodeComponent(path)}&code=${_selectedDevice!.accessCode}';
       print('Making request to: $url');
-      
+
       final response = await http.get(
         Uri.parse(url),
         headers: {'Content-Type': 'application/json'},
       ).timeout(Duration(seconds: 10));
-      
+
       print('Response status: ${response.statusCode}');
       print('Response body: ${response.body}');
-      
+
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
         setState(() {
-          _remoteFiles = data.map((item) => RemoteFileInfo.fromJson(item)).toList();
+          _remoteFiles =
+              data.map((item) => RemoteFileInfo.fromJson(item)).toList();
           _currentRemotePath = path;
         });
         print('Loaded ${_remoteFiles.length} remote files');
       } else {
-        print('Failed to load files: ${response.statusCode} - ${response.body}');
+        print(
+            'Failed to load files: ${response.statusCode} - ${response.body}');
         _showSnackBar(
           'Failed to load files: ${response.statusCode}',
           Icons.error_rounded,
@@ -662,40 +693,41 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
 
   Future<void> _downloadFile(RemoteFileInfo file) async {
     if (_selectedDevice == null) return;
-    
+
     print('Downloading file: ${file.name}');
-    
+
     try {
       final downloadsDir = await getDownloadsDirectory();
       final savePath = p.join(downloadsDir!.path, 'speedshare', file.name);
-      
+
       // Create directory if it doesn't exist
       await Directory(p.dirname(savePath)).create(recursive: true);
-      
+
       final downloadTask = DownloadTask(
         file: file,
         savePath: savePath,
         progress: 0.0,
         status: 'Starting',
       );
-      
+
       setState(() {
         _downloadQueue.add(downloadTask);
       });
-      
-      final url = 'http://${_selectedDevice!.ip}:${_selectedDevice!.port}/api/download?file=${Uri.encodeComponent(file.path)}&code=${_selectedDevice!.accessCode}';
+
+      final url =
+          'http://${_selectedDevice!.ip}:${_selectedDevice!.port}/api/download?file=${Uri.encodeComponent(file.path)}&code=${_selectedDevice!.accessCode}';
       print('Downloading from: $url');
-      
+
       final response = await http.get(Uri.parse(url));
-      
+
       if (response.statusCode == 200) {
         await File(savePath).writeAsBytes(response.bodyBytes);
-        
+
         setState(() {
           downloadTask.progress = 1.0;
           downloadTask.status = 'Completed';
         });
-        
+
         print('Download completed: ${file.name}');
         _showSnackBar(
           'Downloaded: ${file.name}',
@@ -723,7 +755,8 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
     }
   }
 
-  void _showSnackBar(String message, IconData icon, Color color, {SnackBarAction? action}) {
+  void _showSnackBar(String message, IconData icon, Color color,
+      {SnackBarAction? action}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
@@ -745,7 +778,8 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
   String _formatFileSize(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    if (bytes < 1024 * 1024 * 1024)
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 
@@ -768,14 +802,14 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
         children: [
           // Header - Responsive
           _buildHeader(),
-          
+
           SizedBox(height: context.isMobile ? 12 : 20),
-          
+
           // Tab bar - Responsive
           _buildTabBar(),
-          
+
           SizedBox(height: context.isMobile ? 12 : 16),
-          
+
           // Tab content
           Expanded(
             child: TabBarView(
@@ -814,7 +848,8 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
               Text(
                 'Sync',
                 style: TextStyle(
-                  fontSize: (context.isMobile ? 18 : 20) * context.fontSizeMultiplier,
+                  fontSize:
+                      (context.isMobile ? 18 : 20) * context.fontSizeMultiplier,
                   fontWeight: FontWeight.bold,
                   color: Color(0xFF4E6AF3),
                 ),
@@ -822,9 +857,10 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
               Text(
                 'Share and access device storage',
                 style: TextStyle(
-                  fontSize: (context.isMobile ? 11 : 13) * context.fontSizeMultiplier,
-                  color: Theme.of(context).brightness == Brightness.dark 
-                      ? Colors.grey[400] 
+                  fontSize:
+                      (context.isMobile ? 11 : 13) * context.fontSizeMultiplier,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.grey[400]
                       : Colors.grey[600],
                 ),
               ),
@@ -834,9 +870,8 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
         // Status indicator - Responsive
         Container(
           padding: EdgeInsets.symmetric(
-            horizontal: context.isMobile ? 8 : 12, 
-            vertical: context.isMobile ? 4 : 6
-          ),
+              horizontal: context.isMobile ? 8 : 12,
+              vertical: context.isMobile ? 4 : 6),
           decoration: BoxDecoration(
             color: _isStorageSharing ? const Color(0xFF2AB673) : Colors.grey,
             borderRadius: BorderRadius.circular(20),
@@ -845,7 +880,8 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
             _isStorageSharing ? 'Sharing Active' : 'Inactive',
             style: TextStyle(
               color: Colors.white,
-              fontSize: (context.isMobile ? 10 : 12) * context.fontSizeMultiplier,
+              fontSize:
+                  (context.isMobile ? 10 : 12) * context.fontSizeMultiplier,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -881,9 +917,9 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
         children: [
           // Storage sharing status - Responsive
           _buildStorageSharingCard(),
-          
+
           SizedBox(height: context.isMobile ? 12 : 16),
-          
+
           // Shared directories - Responsive
           _buildSharedDirectoriesCard(),
         ],
@@ -901,15 +937,19 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
             Row(
               children: [
                 Icon(
-                  _isStorageSharing ? Icons.share_rounded : Icons.share_outlined,
-                  color: _isStorageSharing ? const Color(0xFF2AB673) : Colors.grey,
+                  _isStorageSharing
+                      ? Icons.share_rounded
+                      : Icons.share_outlined,
+                  color:
+                      _isStorageSharing ? const Color(0xFF2AB673) : Colors.grey,
                   size: context.isMobile ? 16 : 20,
                 ),
                 SizedBox(width: context.isMobile ? 6 : 8),
                 Text(
                   'Storage Sharing',
                   style: TextStyle(
-                    fontSize: (context.isMobile ? 14 : 16) * context.fontSizeMultiplier,
+                    fontSize: (context.isMobile ? 14 : 16) *
+                        context.fontSizeMultiplier,
                     fontWeight: FontWeight.bold,
                     color: _isStorageSharing ? const Color(0xFF2AB673) : null,
                   ),
@@ -917,7 +957,7 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
               ],
             ),
             SizedBox(height: context.isMobile ? 10 : 12),
-            
+
             if (_isStorageSharing) ...[
               // Access code display - Responsive
               _buildAccessCodeSection(),
@@ -926,19 +966,20 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
                 'Active sessions: ${_activeSessions.length} • Port: $_actualServerPort',
                 style: TextStyle(
                   color: Colors.grey[600],
-                  fontSize: (context.isMobile ? 11 : 13) * context.fontSizeMultiplier,
+                  fontSize:
+                      (context.isMobile ? 11 : 13) * context.fontSizeMultiplier,
                 ),
               ),
             ],
-            
+
             SizedBox(height: context.isMobile ? 12 : 16),
-            
+
             // Control button - Responsive
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: _isStorageSharing 
-                    ? _stopStorageSharing 
+                onPressed: _isStorageSharing
+                    ? _stopStorageSharing
                     : (_sharedPaths.isNotEmpty ? _startStorageSharing : null),
                 icon: Icon(
                   _isStorageSharing ? Icons.stop : Icons.play_arrow,
@@ -947,13 +988,16 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
                 label: Text(
                   _isStorageSharing ? 'Stop Sharing' : 'Start Sharing',
                   style: TextStyle(
-                    fontSize: (context.isMobile ? 13 : 14) * context.fontSizeMultiplier,
+                    fontSize: (context.isMobile ? 13 : 14) *
+                        context.fontSizeMultiplier,
                   ),
                 ),
                 style: ElevatedButton.styleFrom(
                   foregroundColor: Colors.white,
-                  backgroundColor: _isStorageSharing ? Colors.red : const Color(0xFF2AB673),
-                  padding: EdgeInsets.symmetric(vertical: context.isMobile ? 12 : 16),
+                  backgroundColor:
+                      _isStorageSharing ? Colors.red : const Color(0xFF2AB673),
+                  padding: EdgeInsets.symmetric(
+                      vertical: context.isMobile ? 12 : 16),
                   disabledBackgroundColor: Colors.grey[400],
                 ),
               ),
@@ -972,7 +1016,8 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
           Text(
             'Access Code:',
             style: TextStyle(
-              fontSize: (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
+              fontSize:
+                  (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
             ),
           ),
           const SizedBox(height: 4),
@@ -980,7 +1025,8 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
             children: [
               Expanded(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                   decoration: BoxDecoration(
                     color: const Color(0xFF4E6AF3).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
@@ -990,7 +1036,8 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       color: Color(0xFF4E6AF3),
-                      fontSize: (context.isMobile ? 14 : 16) * context.fontSizeMultiplier,
+                      fontSize: (context.isMobile ? 14 : 16) *
+                          context.fontSizeMultiplier,
                     ),
                   ),
                 ),
@@ -1033,7 +1080,8 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
             style: TextStyle(
               fontWeight: FontWeight.bold,
               color: Color(0xFF4E6AF3),
-              fontSize: (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
+              fontSize:
+                  (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
             ),
           ),
         ),
@@ -1067,7 +1115,8 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
                 Text(
                   'Shared Directories',
                   style: TextStyle(
-                    fontSize: (context.isMobile ? 14 : 16) * context.fontSizeMultiplier,
+                    fontSize: (context.isMobile ? 14 : 16) *
+                        context.fontSizeMultiplier,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -1077,14 +1126,14 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
                   label: Text(
                     context.isMobile ? 'Add' : 'Add Directory',
                     style: TextStyle(
-                      fontSize: (context.isMobile ? 11 : 13) * context.fontSizeMultiplier,
+                      fontSize: (context.isMobile ? 11 : 13) *
+                          context.fontSizeMultiplier,
                     ),
                   ),
                 ),
               ],
             ),
             SizedBox(height: context.isMobile ? 8 : 12),
-            
             if (_sharedPaths.isEmpty)
               _buildEmptySharedDirectories()
             else
@@ -1110,15 +1159,17 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
             'No directories shared',
             style: TextStyle(
               color: Colors.grey[600],
-              fontSize: (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
+              fontSize:
+                  (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
             ),
           ),
           SizedBox(height: context.isMobile ? 2 : 4),
           Text(
             'Add directories to share with other devices',
             style: TextStyle(
-              color: Colors.grey[500], 
-              fontSize: (context.isMobile ? 10 : 12) * context.fontSizeMultiplier,
+              color: Colors.grey[500],
+              fontSize:
+                  (context.isMobile ? 10 : 12) * context.fontSizeMultiplier,
             ),
           ),
         ],
@@ -1140,7 +1191,7 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
             vertical: context.isMobile ? 0 : 4,
           ),
           leading: Icon(
-            Icons.folder, 
+            Icons.folder,
             color: Color(0xFF4E6AF3),
             size: context.isMobile ? 16 : 20,
           ),
@@ -1148,21 +1199,22 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
             p.basename(path),
             style: TextStyle(
               fontWeight: FontWeight.bold,
-              fontSize: (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
+              fontSize:
+                  (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
             ),
           ),
           subtitle: Text(
             path,
             style: TextStyle(
-              fontSize: (context.isMobile ? 10 : 12) * context.fontSizeMultiplier, 
-              color: Colors.grey[600]
-            ),
+                fontSize:
+                    (context.isMobile ? 10 : 12) * context.fontSizeMultiplier,
+                color: Colors.grey[600]),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
           trailing: IconButton(
             icon: Icon(
-              Icons.remove_circle, 
+              Icons.remove_circle,
               color: Colors.red,
               size: context.isMobile ? 16 : 20,
             ),
@@ -1178,14 +1230,14 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
     if (_isBrowsingFiles && _selectedDevice != null) {
       return _buildFileBrowser();
     }
-    
+
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Device discovery - Responsive
           _buildDeviceDiscoveryCard(),
-          
+
           // Download queue - Responsive
           if (_downloadQueue.isNotEmpty) ...[
             SizedBox(height: context.isMobile ? 12 : 16),
@@ -1206,7 +1258,7 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
             Row(
               children: [
                 Icon(
-                  Icons.devices, 
+                  Icons.devices,
                   color: Color(0xFF4E6AF3),
                   size: context.isMobile ? 16 : 20,
                 ),
@@ -1214,7 +1266,8 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
                 Text(
                   'Available Devices',
                   style: TextStyle(
-                    fontSize: (context.isMobile ? 14 : 16) * context.fontSizeMultiplier,
+                    fontSize: (context.isMobile ? 14 : 16) *
+                        context.fontSizeMultiplier,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -1228,7 +1281,6 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
               ],
             ),
             SizedBox(height: context.isMobile ? 8 : 12),
-            
             if (_availableDevices.isEmpty)
               _buildEmptyDevicesList()
             else
@@ -1260,15 +1312,17 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
             'No devices found',
             style: TextStyle(
               color: Colors.grey[600],
-              fontSize: (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
+              fontSize:
+                  (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
             ),
           ),
           SizedBox(height: context.isMobile ? 2 : 4),
           Text(
             'Make sure other devices are sharing storage',
             style: TextStyle(
-              color: Colors.grey[500], 
-              fontSize: (context.isMobile ? 10 : 12) * context.fontSizeMultiplier,
+              color: Colors.grey[500],
+              fontSize:
+                  (context.isMobile ? 10 : 12) * context.fontSizeMultiplier,
             ),
           ),
         ],
@@ -1298,8 +1352,8 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
-                device.name.toLowerCase().contains('mobile') || 
-                device.name.toLowerCase().contains('phone')
+                device.name.toLowerCase().contains('mobile') ||
+                        device.name.toLowerCase().contains('phone')
                     ? Icons.phone_android
                     : Icons.computer,
                 color: const Color(0xFF2AB673),
@@ -1310,7 +1364,8 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
               device.name,
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                fontSize: (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
+                fontSize:
+                    (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
               ),
             ),
             subtitle: Column(
@@ -1319,15 +1374,16 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
                 Text(
                   'IP: ${device.ip}:${device.port}',
                   style: TextStyle(
-                    fontSize: (context.isMobile ? 10 : 12) * context.fontSizeMultiplier,
+                    fontSize: (context.isMobile ? 10 : 12) *
+                        context.fontSizeMultiplier,
                   ),
                 ),
                 Text(
                   'Last seen: ${_getTimeAgo(device.lastSeen)} • Code: ${device.accessCode}',
                   style: TextStyle(
-                    fontSize: (context.isMobile ? 9 : 11) * context.fontSizeMultiplier, 
-                    color: Colors.grey[500]
-                  ),
+                      fontSize: (context.isMobile ? 9 : 11) *
+                          context.fontSizeMultiplier,
+                      color: Colors.grey[500]),
                 ),
               ],
             ),
@@ -1336,7 +1392,8 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
               child: Text(
                 'Browse',
                 style: TextStyle(
-                  fontSize: (context.isMobile ? 11 : 13) * context.fontSizeMultiplier,
+                  fontSize:
+                      (context.isMobile ? 11 : 13) * context.fontSizeMultiplier,
                 ),
               ),
               style: ElevatedButton.styleFrom(
@@ -1364,7 +1421,8 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
             Text(
               'Download Queue',
               style: TextStyle(
-                fontSize: (context.isMobile ? 14 : 16) * context.fontSizeMultiplier,
+                fontSize:
+                    (context.isMobile ? 14 : 16) * context.fontSizeMultiplier,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -1389,7 +1447,8 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
                   title: Text(
                     task.file.name,
                     style: TextStyle(
-                      fontSize: (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
+                      fontSize: (context.isMobile ? 12 : 14) *
+                          context.fontSizeMultiplier,
                     ),
                   ),
                   subtitle: Column(
@@ -1398,7 +1457,8 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
                       Text(
                         task.status,
                         style: TextStyle(
-                          fontSize: (context.isMobile ? 10 : 12) * context.fontSizeMultiplier,
+                          fontSize: (context.isMobile ? 10 : 12) *
+                              context.fontSizeMultiplier,
                         ),
                       ),
                       if (task.progress > 0 && task.progress < 1)
@@ -1413,13 +1473,13 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
                   ),
                   trailing: task.status == 'Completed'
                       ? Icon(
-                          Icons.check_circle, 
+                          Icons.check_circle,
                           color: Color(0xFF2AB673),
                           size: context.isMobile ? 16 : 20,
                         )
                       : task.status == 'Failed'
                           ? Icon(
-                              Icons.error, 
+                              Icons.error,
                               color: Colors.red,
                               size: context.isMobile ? 16 : 20,
                             )
@@ -1438,9 +1498,9 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
       children: [
         // Navigation bar - Responsive
         _buildFileBrowserNavigation(),
-        
+
         SizedBox(height: context.isMobile ? 6 : 8),
-        
+
         // File list - Responsive
         Expanded(
           child: _buildFileList(),
@@ -1477,15 +1537,16 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
                     _selectedDevice?.name ?? '',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
+                      fontSize: (context.isMobile ? 12 : 14) *
+                          context.fontSizeMultiplier,
                     ),
                   ),
                   Text(
                     _currentRemotePath,
                     style: TextStyle(
-                      fontSize: (context.isMobile ? 10 : 12) * context.fontSizeMultiplier, 
-                      color: Colors.grey[600]
-                    ),
+                        fontSize: (context.isMobile ? 10 : 12) *
+                            context.fontSizeMultiplier,
+                        color: Colors.grey[600]),
                   ),
                 ],
               ),
@@ -1519,7 +1580,8 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
               'No files found',
               style: TextStyle(
                 color: Colors.grey[600],
-                fontSize: (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
+                fontSize:
+                    (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
               ),
             ),
           ],
@@ -1541,8 +1603,8 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
             ),
             leading: Icon(
               file.isDirectory ? Icons.folder : _getFileIcon(file.type),
-              color: file.isDirectory 
-                  ? const Color(0xFF4E6AF3) 
+              color: file.isDirectory
+                  ? const Color(0xFF4E6AF3)
                   : _getFileIconColor(file.type),
               size: context.isMobile ? 16 : 20,
             ),
@@ -1550,20 +1612,23 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
               file.name,
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                fontSize: (context.isMobile ? 11 : 13) * context.fontSizeMultiplier,
+                fontSize:
+                    (context.isMobile ? 11 : 13) * context.fontSizeMultiplier,
               ),
             ),
             subtitle: file.isDirectory
                 ? Text(
                     'Directory',
                     style: TextStyle(
-                      fontSize: (context.isMobile ? 9 : 11) * context.fontSizeMultiplier,
+                      fontSize: (context.isMobile ? 9 : 11) *
+                          context.fontSizeMultiplier,
                     ),
                   )
                 : Text(
                     _formatFileSize(file.size),
                     style: TextStyle(
-                      fontSize: (context.isMobile ? 9 : 11) * context.fontSizeMultiplier,
+                      fontSize: (context.isMobile ? 9 : 11) *
+                          context.fontSizeMultiplier,
                     ),
                   ),
             trailing: file.isDirectory
@@ -1578,9 +1643,7 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
                     ),
                     onPressed: () => _downloadFile(file),
                   ),
-            onTap: file.isDirectory
-                ? () => _loadRemoteFiles(file.path)
-                : null,
+            onTap: file.isDirectory ? () => _loadRemoteFiles(file.path) : null,
           ),
         );
       },
@@ -1592,10 +1655,13 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
     if (type.startsWith('video/')) return Icons.video_file;
     if (type.startsWith('audio/')) return Icons.audio_file;
     if (type.contains('pdf')) return Icons.picture_as_pdf;
-    if (type.contains('document') || type.contains('word')) return Icons.description;
-    if (type.contains('spreadsheet') || type.contains('excel')) return Icons.table_chart;
+    if (type.contains('document') || type.contains('word'))
+      return Icons.description;
+    if (type.contains('spreadsheet') || type.contains('excel'))
+      return Icons.table_chart;
     if (type.contains('presentation')) return Icons.slideshow;
-    if (type.contains('zip') || type.contains('compressed')) return Icons.folder_zip;
+    if (type.contains('zip') || type.contains('compressed'))
+      return Icons.folder_zip;
     return Icons.insert_drive_file;
   }
 
@@ -1605,16 +1671,18 @@ class _SyncScreenState extends State<SyncScreen> with TickerProviderStateMixin {
     if (type.startsWith('audio/')) return Colors.purple;
     if (type.contains('pdf')) return Colors.red;
     if (type.contains('document') || type.contains('word')) return Colors.blue;
-    if (type.contains('spreadsheet') || type.contains('excel')) return const Color(0xFF2AB673);
+    if (type.contains('spreadsheet') || type.contains('excel'))
+      return const Color(0xFF2AB673);
     if (type.contains('presentation')) return Colors.orange;
-    if (type.contains('zip') || type.contains('compressed')) return Colors.amber;
+    if (type.contains('zip') || type.contains('compressed'))
+      return Colors.amber;
     return Colors.grey;
   }
 
   String _getTimeAgo(DateTime dateTime) {
     final now = DateTime.now();
     final difference = now.difference(dateTime);
-    
+
     if (difference.inMinutes < 1) return 'Just now';
     if (difference.inMinutes < 60) return '${difference.inMinutes}m ago';
     if (difference.inHours < 24) return '${difference.inHours}h ago';

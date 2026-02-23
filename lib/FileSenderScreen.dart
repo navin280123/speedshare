@@ -3,24 +3,30 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:mime/mime.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:lottie/lottie.dart';
 import 'package:speedshare/main.dart';
 
+/// True when running on a desktop platform that supports drag-and-drop.
+bool get _isDesktopPlatform =>
+    !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
+
 class FileSenderScreen extends StatefulWidget {
   @override
   _FileSenderScreenState createState() => _FileSenderScreenState();
 }
 
-class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerProviderStateMixin {
+class _FileSenderScreenState extends State<FileSenderScreen>
+    with SingleTickerProviderStateMixin {
   // Constants
   static const int MAX_FILE_SIZE = 5 * 1024 * 1024 * 1024; // 5GB
   static const int CHUNK_SIZE = 32 * 1024; // 32KB chunks
   static const int CONNECTION_TIMEOUT = 10; // seconds
   static const int DISCOVERY_TIMEOUT = 5; // seconds
-  
+
   late AnimationController _controller;
   bool _isSending = false;
   double _progress = 0.0;
@@ -40,7 +46,7 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
 
   List<ReceiverDevice> availableReceivers = [];
   int _selectedReceiverIndex = -1;
-  bool _isDiscovering = false;
+
   Timer? _discoveryTimer;
   RawDatagramSocket? _discoverySocket;
 
@@ -87,12 +93,14 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
   void discoverWithUDP() async {
     try {
       setState(() {
-        _isDiscovering = true;
+        // discovering = true — tracked locally in discovery methods
         availableReceivers.clear();
         _filteredReceivers = [];
       });
 
-      _discoverySocket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
+      _discoverySocket =
+          await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
+      _discoverySocket!.broadcastEnabled = true;
 
       _discoverySocket!.listen((event) {
         if (event == RawSocketEvent.read) {
@@ -107,7 +115,8 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
                 final ipAddress = datagram.address.address;
                 if (mounted) {
                   setState(() {
-                    if (!availableReceivers.any((device) => device.ip == ipAddress)) {
+                    if (!availableReceivers
+                        .any((device) => device.ip == ipAddress)) {
                       final newDevice = ReceiverDevice(
                         name: deviceName,
                         ip: ipAddress,
@@ -121,6 +130,8 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
             }
           }
         }
+      }, onError: (error) {
+        print('UDP Discovery Stream error: $error');
       });
 
       final interfaces = await NetworkInterface.list();
@@ -139,19 +150,21 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
                   '$subnet.1',
                   addr.address,
                 ];
-                
+
                 for (String address in addresses) {
                   try {
-                    _discoverySocket!.send(message, InternetAddress(address), 8081);
+                    _discoverySocket!
+                        .send(message, InternetAddress(address), 8081);
                   } catch (e) {
                     print('Failed to send to $address: $e');
                   }
                 }
-                
+
                 // Also send to common IP ranges
                 for (int i = 2; i < 20; i++) {
                   try {
-                    _discoverySocket!.send(message, InternetAddress('$subnet.$i'), 8081);
+                    _discoverySocket!
+                        .send(message, InternetAddress('$subnet.$i'), 8081);
                   } catch (e) {
                     // Silent fail for individual IPs
                   }
@@ -163,14 +176,14 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
           }
         }
       }
-      
+
       Timer(Duration(seconds: 3), () {
         if (mounted) {
           if (availableReceivers.isEmpty) {
             checkDirectTCPConnections();
           } else {
             setState(() {
-              _isDiscovering = false;
+              // discovery done
               isScanning = false;
               _filteredReceivers = _filterReceivers();
             });
@@ -198,7 +211,12 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
                 await checkReceiver('$prefix.$i');
               }
               // Check common router/device IPs
-              final commonIPs = ['$prefix.100', '$prefix.101', '$prefix.102', '$prefix.254'];
+              final commonIPs = [
+                '$prefix.100',
+                '$prefix.101',
+                '$prefix.102',
+                '$prefix.254'
+              ];
               for (String ip in commonIPs) {
                 await checkReceiver(ip);
               }
@@ -211,7 +229,7 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
     } finally {
       if (mounted) {
         setState(() {
-          _isDiscovering = false;
+          // discovery done
           isScanning = false;
           _filteredReceivers = _filterReceivers();
         });
@@ -221,13 +239,16 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
 
   Future<void> checkReceiver(String ip) async {
     try {
-      final socket = await Socket.connect(
-        ip, 
-        8080, 
-        timeout: Duration(milliseconds: 500)
-      ).catchError((e) => null);
-
-      if (socket == null) return;
+      Socket? socket;
+      try {
+        socket = await Socket.connect(
+          ip,
+          8080,
+          timeout: const Duration(milliseconds: 500),
+        );
+      } catch (_) {
+        return; // Connection refused or timed out — not a receiver
+      }
 
       final completer = Completer<String?>();
 
@@ -275,18 +296,15 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
       );
       return;
     }
-    
+
     setState(() {
       isConnecting = true;
       _currentStep = 3;
     });
-    
+
     try {
-      socket = await Socket.connect(
-        ip, 
-        8080, 
-        timeout: Duration(seconds: CONNECTION_TIMEOUT)
-      );
+      socket = await Socket.connect(ip, 8080,
+          timeout: Duration(seconds: CONNECTION_TIMEOUT));
 
       String deviceName = name ?? '';
       if (deviceName.isEmpty) {
@@ -308,7 +326,7 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
             completer.completeError(e);
           }
         });
-        
+
         try {
           deviceName = await completer.future.timeout(Duration(seconds: 2));
         } catch (e) {
@@ -390,17 +408,18 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
         allowMultiple: true,
         dialogTitle: 'Select files to send',
       );
-      
+
       if (result != null && result.files.isNotEmpty) {
         List<FileToSend> files = [];
         int totalSize = 0;
-        
+
         for (var file in result.files) {
           if (file.path != null) {
             File fileData = File(file.path!);
-            String fileName = file.path!.split(Platform.isWindows ? '\\' : '/').last;
+            String fileName =
+                file.path!.split(Platform.isWindows ? '\\' : '/').last;
             int fileSize = fileData.lengthSync();
-            
+
             // Validate file size
             if (fileSize > MAX_FILE_SIZE) {
               _showSnackBar(
@@ -410,8 +429,9 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
               );
               continue;
             }
-            
-            String fileType = lookupMimeType(file.path!) ?? 'application/octet-stream';
+
+            String fileType =
+                lookupMimeType(file.path!) ?? 'application/octet-stream';
             files.add(FileToSend(
               file: fileData,
               name: fileName,
@@ -424,7 +444,7 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
             totalSize += fileSize;
           }
         }
-        
+
         if (files.isNotEmpty) {
           _prepareFiles(files, totalSize);
           _controller.reset();
@@ -531,7 +551,7 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
   void _sendCurrentFileData() async {
     if (socket == null || _currentFileIndex >= _selectedFiles.length) return;
     final currentFile = _selectedFiles[_currentFileIndex];
-    
+
     try {
       final fileStream = currentFile.file.openRead();
       int bytesSent = 0;
@@ -542,20 +562,21 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
         if (socket == null) {
           throw Exception("Connection lost");
         }
-        
+
         socket!.add(chunk);
         bytesSent += chunk.length;
         _totalBytesSent += chunk.length;
 
         if (bytesSent - lastProgressUpdate > updateThreshold && mounted) {
           setState(() {
-            _selectedFiles[_currentFileIndex].progress = bytesSent / currentFile.size;
+            _selectedFiles[_currentFileIndex].progress =
+                bytesSent / currentFile.size;
             _selectedFiles[_currentFileIndex].bytesSent = bytesSent;
             _progress = _totalBytesSent / _totalFileSize;
           });
           lastProgressUpdate = bytesSent;
         }
-        
+
         // Small delay to prevent UI blocking
         if (bytesSent % (CHUNK_SIZE * 10) == 0) {
           await Future.delayed(Duration(milliseconds: 1));
@@ -572,7 +593,9 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
 
       // Wait for confirmation or timeout
       Timer(Duration(seconds: 15), () {
-        if (_isSending && _selectedFiles[_currentFileIndex].progress >= 0.99 && mounted) {
+        if (_isSending &&
+            _selectedFiles[_currentFileIndex].progress >= 0.99 &&
+            mounted) {
           _handleFileTransferComplete();
         }
       });
@@ -635,10 +658,11 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
     if (_searchQuery.isEmpty) {
       return availableReceivers;
     }
-    return availableReceivers.where((device) =>
-      device.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-      device.ip.contains(_searchQuery)
-    ).toList();
+    return availableReceivers
+        .where((device) =>
+            device.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+            device.ip.contains(_searchQuery))
+        .toList();
   }
 
   IconData _getFileIconData(String fileType) {
@@ -654,7 +678,8 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
       return Icons.description_rounded;
     } else if (fileType.contains('excel') || fileType.contains('sheet')) {
       return Icons.table_chart_rounded;
-    } else if (fileType.contains('presentation') || fileType.contains('powerpoint')) {
+    } else if (fileType.contains('presentation') ||
+        fileType.contains('powerpoint')) {
       return Icons.slideshow_rounded;
     } else if (fileType.contains('zip') || fileType.contains('compressed')) {
       return Icons.folder_zip_rounded;
@@ -676,7 +701,8 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
       return Color(0xFF3498db);
     } else if (fileType.contains('excel') || fileType.contains('sheet')) {
       return Color(0xFF2ecc71);
-    } else if (fileType.contains('presentation') || fileType.contains('powerpoint')) {
+    } else if (fileType.contains('presentation') ||
+        fileType.contains('powerpoint')) {
       return Color(0xFFe67e22);
     } else if (fileType.contains('zip') || fileType.contains('compressed')) {
       return Color(0xFFf39c12);
@@ -689,7 +715,8 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
     return a < b ? a : b;
   }
 
-  void _showSnackBar(String message, IconData icon, Color color, {SnackBarAction? action}) {
+  void _showSnackBar(String message, IconData icon, Color color,
+      {SnackBarAction? action}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
@@ -728,14 +755,14 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
           children: [
             // Header with title - Responsive
             _buildHeader(),
-            
+
             SizedBox(height: context.isMobile ? 12 : 16),
-            
+
             // Step indicator - Responsive
             _buildStepIndicator(),
-            
+
             SizedBox(height: context.isMobile ? 12 : 16),
-            
+
             // Main content area
             Expanded(
               child: _buildCurrentStepContent(),
@@ -778,8 +805,8 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
                 'Share between devices',
                 style: TextStyle(
                   fontSize: context.isMobile ? 12 : 13,
-                  color: Theme.of(context).brightness == Brightness.dark 
-                      ? Colors.grey[400] 
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.grey[400]
                       : Colors.grey[600],
                 ),
               ),
@@ -839,25 +866,27 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
             decoration: BoxDecoration(
               color: isActive ? const Color(0xFF4E6AF3) : Colors.grey[300],
               shape: BoxShape.circle,
-              boxShadow: isActive ? [
-                BoxShadow(
-                  color: const Color(0xFF4E6AF3).withOpacity(0.3),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                ),
-              ] : null,
+              boxShadow: isActive
+                  ? [
+                      BoxShadow(
+                        color: const Color(0xFF4E6AF3).withOpacity(0.3),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ]
+                  : null,
             ),
             child: Center(
               child: isActive && step < _currentStep
-                ? const Icon(Icons.check, color: Colors.white, size: 14)
-                : Text(
-                    '$step',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
+                  ? const Icon(Icons.check, color: Colors.white, size: 14)
+                  : Text(
+                      '$step',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
                     ),
-                  ),
             ),
           ),
           const SizedBox(height: 6),
@@ -874,7 +903,7 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
       ),
     );
   }
-  
+
   Widget _buildStepItem(int step, String label, bool isActive) {
     return Expanded(
       child: Column(
@@ -885,24 +914,26 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
             decoration: BoxDecoration(
               color: isActive ? const Color(0xFF4E6AF3) : Colors.grey[300],
               shape: BoxShape.circle,
-              boxShadow: isActive ? [
-                BoxShadow(
-                  color: const Color(0xFF4E6AF3).withOpacity(0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
-                ),
-              ] : null,
+              boxShadow: isActive
+                  ? [
+                      BoxShadow(
+                        color: const Color(0xFF4E6AF3).withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ]
+                  : null,
             ),
             child: Center(
               child: isActive && step < _currentStep
-                ? const Icon(Icons.check, color: Colors.white, size: 16)
-                : Text(
-                    '$step',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
+                  ? const Icon(Icons.check, color: Colors.white, size: 16)
+                  : Text(
+                      '$step',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
             ),
           ),
           const SizedBox(height: 8),
@@ -940,185 +971,193 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
         return _buildSelectFileStep();
     }
   }
-  
+
   Widget _buildSelectFileStep() {
     return Card(
-      child: _filesSelected 
-          ? _buildSelectedFilesInfo()
-          : _buildFileDropArea(),
+      child: _filesSelected ? _buildSelectedFilesInfo() : _buildFileDropArea(),
     );
   }
-  
+
   Widget _buildFileDropArea() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final animationSize = context.isMobile 
-            ? constraints.maxWidth * 0.3 
+        final animationSize = context.isMobile
+            ? constraints.maxWidth * 0.3
             : constraints.maxWidth * 0.25;
         final iconSize = context.isMobile ? 24.0 : 40.0;
-        final headingSize = (context.isMobile ? 16.0 : 20.0) * context.fontSizeMultiplier;
+        final headingSize =
+            (context.isMobile ? 16.0 : 20.0) * context.fontSizeMultiplier;
         final contentPadding = context.responsivePadding;
-        
-        return DropTarget(
-          onDragDone: (detail) async {
-            if (detail.files.isNotEmpty) {
-              List<FileToSend> files = [];
-              int totalSize = 0;
-              
-              for (var fileEntry in detail.files) {
-                File file = File(fileEntry.path);
-                String fileName = fileEntry.path.split(Platform.isWindows ? '\\' : '/').last;
-                int fileSize = file.lengthSync();
-                
-                // Validate file size
-                if (fileSize > MAX_FILE_SIZE) {
-                  _showSnackBar(
-                    'File $fileName is too large. Maximum size is ${_formatFileSize(MAX_FILE_SIZE)}',
-                    Icons.error_rounded,
-                    Colors.red,
-                  );
-                  continue;
-                }
-                
-                String fileType = lookupMimeType(fileEntry.path) ?? 'application/octet-stream';
-                
-                files.add(FileToSend(
-                  file: file,
-                  name: fileName,
-                  size: fileSize,
-                  type: fileType,
-                  progress: 0.0,
-                  bytesSent: 0,
-                  status: 'Pending',
-                ));
-                
-                totalSize += fileSize;
-              }
-              
-              if (files.isNotEmpty) {
-                _prepareFiles(files, totalSize);
-                _controller.reset();
-                _controller.forward();
-                setState(() {
-                  _currentStep = 2;
-                });
-              }
-            }
-          },
-          onDragEntered: (detail) {
-            setState(() {
-              _isHovering = true;
-            });
-          },
-          onDragExited: (detail) {
-            setState(() {
-              _isHovering = false;
-            });
-          },
-          child: Container(
-            padding: contentPadding,
-            width: double.infinity,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Flexible(
-                  child: Lottie.asset(
-                    'assets/upload_animation.json',
-                    width: animationSize,
-                    height: animationSize,
-                    fit: BoxFit.contain,
-                    repeat: _isHovering,
-                    animate: _isHovering,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        width: context.isMobile ? 60 : 80,
-                        height: context.isMobile ? 60 : 80,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF4E6AF3).withOpacity(0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.cloud_upload_rounded,
-                          size: iconSize,
-                          color: _isHovering ? const Color(0xFF4E6AF3) : Colors.grey[400],
-                        ),
-                      );
-                    },
-                  ),
+
+        // Build the inner content (shared between desktop and mobile)
+        Widget innerContent = Container(
+          padding: contentPadding,
+          width: double.infinity,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Flexible(
+                child: Lottie.asset(
+                  'assets/upload.json',
+                  width: animationSize,
+                  height: animationSize,
+                  fit: BoxFit.contain,
+                  repeat: _isHovering,
+                  animate: true,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      width: context.isMobile ? 60 : 80,
+                      height: context.isMobile ? 60 : 80,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF4E6AF3).withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.cloud_upload_rounded,
+                        size: iconSize,
+                        color: _isHovering
+                            ? const Color(0xFF4E6AF3)
+                            : Colors.grey[400],
+                      ),
+                    );
+                  },
                 ),
-                SizedBox(height: context.isMobile ? 16 : 24),
-                Text(
-                  _isHovering ? 'Release to Upload' : 'Drop Files Here',
-                  style: TextStyle(
-                    fontSize: headingSize,
-                    fontWeight: FontWeight.bold,
-                    color: _isHovering ? const Color(0xFF4E6AF3) : Colors.grey[700],
-                  ),
+              ),
+              SizedBox(height: context.isMobile ? 16 : 24),
+              Text(
+                _isDesktopPlatform
+                    ? (_isHovering ? 'Release to Upload' : 'Drop Files Here')
+                    : 'Select Files to Send',
+                style: TextStyle(
+                  fontSize: headingSize,
+                  fontWeight: FontWeight.bold,
+                  color:
+                      _isHovering ? const Color(0xFF4E6AF3) : Colors.grey[700],
                 ),
+              ),
+              if (_isDesktopPlatform) ...[
                 SizedBox(height: context.isMobile ? 8 : 12),
                 Text(
                   'or',
                   style: TextStyle(
                     color: Colors.grey[600],
-                    fontSize: (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
-                  ),
-                ),
-                SizedBox(height: context.isMobile ? 16 : 24),
-                ElevatedButton.icon(
-                  onPressed: _pickFile,
-                  icon: Icon(Icons.add_rounded, size: context.isMobile ? 16 : 18),
-                  label: Text('Select Files'),
-                  style: ElevatedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    backgroundColor: const Color(0xFF4E6AF3),
-                    padding: EdgeInsets.symmetric(
-                      horizontal: context.isMobile ? 20 : 24,
-                      vertical: context.isMobile ? 12 : 16,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    elevation: 2,
-                    shadowColor: const Color(0xFF4E6AF3).withOpacity(0.3),
-                  ),
-                ),
-                SizedBox(height: context.isMobile ? 20 : 32),
-                Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: context.isMobile ? 12 : 16, 
-                    vertical: context.isMobile ? 8 : 10
-                  ),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).brightness == Brightness.dark 
-                        ? Colors.grey[800]
-                        : Colors.grey[100],
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.info_outline_rounded, 
-                          size: context.isMobile ? 14 : 16, 
-                          color: Colors.grey[600]),
-                      SizedBox(width: context.isMobile ? 6 : 8),
-                      Text(
-                        'Multiple files supported • Max ${_formatFileSize(MAX_FILE_SIZE)} per file',
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: (context.isMobile ? 11 : 12) * context.fontSizeMultiplier,
-                        ),
-                      ),
-                    ],
+                    fontSize: (context.isMobile ? 12 : 14) *
+                        context.fontSizeMultiplier,
                   ),
                 ),
               ],
-            ),
+              SizedBox(height: context.isMobile ? 16 : 24),
+              ElevatedButton.icon(
+                onPressed: _pickFile,
+                icon: Icon(Icons.add_rounded, size: context.isMobile ? 16 : 18),
+                label: const Text('Select Files'),
+                style: ElevatedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  backgroundColor: const Color(0xFF4E6AF3),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: context.isMobile ? 20 : 24,
+                    vertical: context.isMobile ? 12 : 16,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 2,
+                  shadowColor: const Color(0xFF4E6AF3).withValues(alpha: 0.3),
+                ),
+              ),
+              SizedBox(height: context.isMobile ? 20 : 32),
+              Container(
+                padding: EdgeInsets.symmetric(
+                    horizontal: context.isMobile ? 12 : 16,
+                    vertical: context.isMobile ? 8 : 10),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.grey[800]
+                      : Colors.grey[100],
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.info_outline_rounded,
+                        size: context.isMobile ? 14 : 16,
+                        color: Colors.grey[600]),
+                    SizedBox(width: context.isMobile ? 6 : 8),
+                    Flexible(
+                      child: Text(
+                        'Multiple files supported • Max ${_formatFileSize(MAX_FILE_SIZE)} per file',
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontSize: (context.isMobile ? 11 : 12) *
+                              context.fontSizeMultiplier,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         );
+
+        // Only wrap with DropTarget on desktop platforms
+        if (_isDesktopPlatform) {
+          return DropTarget(
+            onDragDone: (detail) async {
+              if (detail.files.isNotEmpty) {
+                List<FileToSend> files = [];
+                int totalSize = 0;
+
+                for (var fileEntry in detail.files) {
+                  final file = File(fileEntry.path);
+                  final fileName = fileEntry.path
+                      .split(Platform.isWindows ? '\\' : '/')
+                      .last;
+                  final fileSize = file.lengthSync();
+
+                  if (fileSize > MAX_FILE_SIZE) {
+                    _showSnackBar(
+                      'File $fileName is too large. Max ${_formatFileSize(MAX_FILE_SIZE)}',
+                      Icons.error_rounded,
+                      Colors.red,
+                    );
+                    continue;
+                  }
+
+                  final fileType = lookupMimeType(fileEntry.path) ??
+                      'application/octet-stream';
+                  files.add(FileToSend(
+                    file: file,
+                    name: fileName,
+                    size: fileSize,
+                    type: fileType,
+                    progress: 0.0,
+                    bytesSent: 0,
+                    status: 'Pending',
+                  ));
+                  totalSize += fileSize;
+                }
+
+                if (files.isNotEmpty) {
+                  _prepareFiles(files, totalSize);
+                  _controller.reset();
+                  _controller.forward();
+                  setState(() => _currentStep = 2);
+                }
+              }
+            },
+            onDragEntered: (_) => setState(() => _isHovering = true),
+            onDragExited: (_) => setState(() => _isHovering = false),
+            child: innerContent,
+          );
+        }
+
+        // On mobile — show inner content directly (tap to pick only)
+        return innerContent;
       },
     );
   }
-  
+
   Widget _buildSelectedFilesInfo() {
     return Padding(
       padding: context.responsivePadding,
@@ -1129,22 +1168,24 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
             'Selected Files (${_selectedFiles.length})',
             style: TextStyle(
               fontWeight: FontWeight.bold,
-              fontSize: (context.isMobile ? 14 : 16) * context.fontSizeMultiplier,
+              fontSize:
+                  (context.isMobile ? 14 : 16) * context.fontSizeMultiplier,
             ),
           ),
-          
+
           SizedBox(height: context.isMobile ? 6 : 8),
-          
+
           Text(
             'Total Size: ${_formatFileSize(_totalFileSize)}',
             style: TextStyle(
               color: Colors.grey[600],
-              fontSize: (context.isMobile ? 12 : 13) * context.fontSizeMultiplier,
+              fontSize:
+                  (context.isMobile ? 12 : 13) * context.fontSizeMultiplier,
             ),
           ),
-          
+
           SizedBox(height: context.isMobile ? 12 : 16),
-          
+
           // List of selected files
           Expanded(
             child: ListView.builder(
@@ -1175,7 +1216,8 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
                       file.name,
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
+                        fontSize: (context.isMobile ? 12 : 14) *
+                            context.fontSizeMultiplier,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -1184,7 +1226,8 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
                       _formatFileSize(file.size),
                       style: TextStyle(
                         color: Colors.grey[600],
-                        fontSize: (context.isMobile ? 10 : 12) * context.fontSizeMultiplier,
+                        fontSize: (context.isMobile ? 10 : 12) *
+                            context.fontSizeMultiplier,
                       ),
                     ),
                     trailing: IconButton(
@@ -1197,9 +1240,9 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
               },
             ),
           ),
-          
+
           SizedBox(height: context.isMobile ? 12 : 16),
-          
+
           // Action buttons - Responsive layout
           if (context.isMobile) ...[
             // Mobile: Full-width stacked buttons
@@ -1245,9 +1288,9 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
                 ),
               ),
             ),
-            
+
             const SizedBox(height: 16),
-            
+
             Center(
               child: ElevatedButton.icon(
                 onPressed: () {
@@ -1260,7 +1303,8 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
                 style: ElevatedButton.styleFrom(
                   foregroundColor: Colors.white,
                   backgroundColor: const Color(0xFF4E6AF3),
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 ),
               ),
             ),
@@ -1269,7 +1313,7 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
       ),
     );
   }
-  
+
   Widget _buildSelectReceiverStep() {
     return Card(
       child: Padding(
@@ -1279,23 +1323,23 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
           children: [
             // Selected files summary - Responsive
             _buildFilesSummary(),
-            
+
             SizedBox(height: context.isMobile ? 12 : 16),
-            
+
             // Search bar - Responsive
             _buildSearchBar(),
-            
+
             SizedBox(height: context.isMobile ? 12 : 16),
-            
+
             // Receiver list - Scrollable content
             Expanded(
               child: _filteredReceivers.isEmpty
                   ? _buildEmptyReceiverState()
                   : _buildReceiverList(),
             ),
-            
+
             SizedBox(height: context.isMobile ? 12 : 16),
-            
+
             // Bottom navigation - Responsive
             _buildReceiverStepNavigation(),
           ],
@@ -1437,7 +1481,8 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
       padding: EdgeInsets.symmetric(horizontal: context.isMobile ? 10 : 12),
       child: Row(
         children: [
-          Icon(Icons.search, color: Colors.grey[500], size: context.isMobile ? 18 : 20),
+          Icon(Icons.search,
+              color: Colors.grey[500], size: context.isMobile ? 18 : 20),
           SizedBox(width: context.isMobile ? 6 : 8),
           Expanded(
             child: TextField(
@@ -1452,7 +1497,9 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
                 border: InputBorder.none,
                 hintStyle: TextStyle(color: Colors.grey[500]),
               ),
-              style: TextStyle(fontSize: (context.isMobile ? 12 : 14) * context.fontSizeMultiplier),
+              style: TextStyle(
+                  fontSize: (context.isMobile ? 12 : 14) *
+                      context.fontSizeMultiplier),
             ),
           ),
           if (_searchQuery.isNotEmpty)
@@ -1479,15 +1526,11 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
 
         return Card(
           margin: EdgeInsets.only(bottom: context.isMobile ? 6 : 8),
-          color: isSelected 
-              ? const Color(0xFF4E6AF3).withOpacity(0.05)
-              : null,
+          color: isSelected ? const Color(0xFF4E6AF3).withOpacity(0.05) : null,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8),
             side: BorderSide(
-              color: isSelected
-                  ? const Color(0xFF4E6AF3)
-                  : Colors.transparent,
+              color: isSelected ? const Color(0xFF4E6AF3) : Colors.transparent,
               width: 1.5,
             ),
           ),
@@ -1530,16 +1573,16 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
                           receiver.name,
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            fontSize: (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
-                            color: isSelected
-                                ? const Color(0xFF4E6AF3)
-                                : null,
+                            fontSize: (context.isMobile ? 12 : 14) *
+                                context.fontSizeMultiplier,
+                            color: isSelected ? const Color(0xFF4E6AF3) : null,
                           ),
                         ),
                         Text(
                           receiver.ip,
                           style: TextStyle(
-                            fontSize: (context.isMobile ? 10 : 12) * context.fontSizeMultiplier,
+                            fontSize: (context.isMobile ? 10 : 12) *
+                                context.fontSizeMultiplier,
                             color: Colors.grey[600],
                           ),
                         ),
@@ -1688,10 +1731,11 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
           Text(
             'No receivers found',
             style: TextStyle(
-              color: Theme.of(context).brightness == Brightness.dark 
-                  ? Colors.grey[300] 
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.grey[300]
                   : Colors.grey[700],
-              fontSize: (context.isMobile ? 14 : 16) * context.fontSizeMultiplier,
+              fontSize:
+                  (context.isMobile ? 14 : 16) * context.fontSizeMultiplier,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -1701,7 +1745,8 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
             textAlign: TextAlign.center,
             style: TextStyle(
               color: Colors.grey[500],
-              fontSize: (context.isMobile ? 11 : 13) * context.fontSizeMultiplier,
+              fontSize:
+                  (context.isMobile ? 11 : 13) * context.fontSizeMultiplier,
             ),
           ),
           SizedBox(height: context.isMobile ? 16 : 24),
@@ -1722,16 +1767,15 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
               foregroundColor: const Color(0xFF4E6AF3),
               side: const BorderSide(color: Color(0xFF4E6AF3), width: 1.5),
               padding: EdgeInsets.symmetric(
-                horizontal: context.isMobile ? 12 : 16, 
-                vertical: context.isMobile ? 8 : 10
-              ),
+                  horizontal: context.isMobile ? 12 : 16,
+                  vertical: context.isMobile ? 8 : 10),
             ),
           ),
         ],
       ),
     );
   }
-  
+
   Widget _buildTransferStep() {
     return Card(
       child: Padding(
@@ -1740,21 +1784,21 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
           children: [
             // Header with receiver info - Responsive
             _buildTransferHeader(),
-            
+
             Divider(height: context.isMobile ? 24 : 32),
-            
+
             // Overall progress - Responsive
             _buildOverallProgress(),
-            
+
             SizedBox(height: context.isMobile ? 12 : 16),
-            
+
             // List of files with their progress - Responsive
             Expanded(
               child: _buildTransferFileList(),
             ),
-            
+
             SizedBox(height: context.isMobile ? 16 : 20),
-            
+
             // Bottom navigation - Responsive
             _buildTransferNavigation(),
           ],
@@ -1787,7 +1831,8 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
                 'Sending to: ${_receiverName ?? "Device"}',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  fontSize: (context.isMobile ? 14 : 16) * context.fontSizeMultiplier,
+                  fontSize:
+                      (context.isMobile ? 14 : 16) * context.fontSizeMultiplier,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -1795,7 +1840,8 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
               Text(
                 'From: ${_userLogin}',
                 style: TextStyle(
-                  fontSize: (context.isMobile ? 10 : 12) * context.fontSizeMultiplier,
+                  fontSize:
+                      (context.isMobile ? 10 : 12) * context.fontSizeMultiplier,
                   color: Colors.grey[600],
                 ),
               ),
@@ -1817,17 +1863,19 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
               'Overall Progress',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                fontSize: (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
+                fontSize:
+                    (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
               ),
             ),
             Text(
               '${(_progress * 100).toStringAsFixed(1)}%',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                color: _transferComplete 
-                    ? const Color(0xFF2AB673) 
+                color: _transferComplete
+                    ? const Color(0xFF2AB673)
                     : const Color(0xFF4E6AF3),
-                fontSize: (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
+                fontSize:
+                    (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
               ),
             ),
           ],
@@ -1839,16 +1887,14 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
             value: _progress,
             backgroundColor: Colors.grey[300],
             valueColor: AlwaysStoppedAnimation<Color>(
-              _transferComplete 
-                  ? const Color(0xFF2AB673) 
+              _transferComplete
+                  ? const Color(0xFF2AB673)
                   : const Color(0xFF4E6AF3),
             ),
             minHeight: context.isMobile ? 6 : 8,
           ),
         ),
-        
         SizedBox(height: context.isMobile ? 4 : 6),
-        
         Text(
           'Sending file ${_currentFileIndex + 1} of ${_selectedFiles.length}',
           style: TextStyle(
@@ -1866,7 +1912,7 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
       itemBuilder: (context, index) {
         final file = _selectedFiles[index];
         final isCurrentFile = index == _currentFileIndex;
-        
+
         // Determine status color
         Color statusColor;
         if (file.status == 'Completed') {
@@ -1878,12 +1924,11 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
         } else {
           statusColor = Colors.grey;
         }
-        
+
         return Card(
           margin: EdgeInsets.only(bottom: context.isMobile ? 6 : 8),
-          color: isCurrentFile 
-              ? const Color(0xFF4E6AF3).withOpacity(0.05)
-              : null,
+          color:
+              isCurrentFile ? const Color(0xFF4E6AF3).withOpacity(0.05) : null,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8),
           ),
@@ -1915,7 +1960,8 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
                             file.name,
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
-                              fontSize: (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
+                              fontSize: (context.isMobile ? 12 : 14) *
+                                  context.fontSizeMultiplier,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -1923,7 +1969,8 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
                           Text(
                             '${_formatFileSize(file.bytesSent)} of ${_formatFileSize(file.size)}',
                             style: TextStyle(
-                              fontSize: (context.isMobile ? 10 : 12) * context.fontSizeMultiplier,
+                              fontSize: (context.isMobile ? 10 : 12) *
+                                  context.fontSizeMultiplier,
                               color: Colors.grey[600],
                             ),
                           ),
@@ -1932,9 +1979,8 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
                     ),
                     Container(
                       padding: EdgeInsets.symmetric(
-                        horizontal: context.isMobile ? 6 : 8, 
-                        vertical: context.isMobile ? 3 : 4
-                      ),
+                          horizontal: context.isMobile ? 6 : 8,
+                          vertical: context.isMobile ? 3 : 4),
                       decoration: BoxDecoration(
                         color: statusColor.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
@@ -1948,20 +1994,28 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
                               height: context.isMobile ? 8 : 10,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(statusColor),
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(statusColor),
                               ),
                             )
                           else if (file.status == 'Completed')
-                            Icon(Icons.check_circle, size: context.isMobile ? 8 : 10, color: statusColor)
+                            Icon(Icons.check_circle,
+                                size: context.isMobile ? 8 : 10,
+                                color: statusColor)
                           else if (file.status == 'Failed')
-                            Icon(Icons.error, size: context.isMobile ? 8 : 10, color: statusColor)
+                            Icon(Icons.error,
+                                size: context.isMobile ? 8 : 10,
+                                color: statusColor)
                           else
-                            Icon(Icons.schedule, size: context.isMobile ? 8 : 10, color: statusColor),
+                            Icon(Icons.schedule,
+                                size: context.isMobile ? 8 : 10,
+                                color: statusColor),
                           SizedBox(width: context.isMobile ? 3 : 4),
                           Text(
                             file.status,
                             style: TextStyle(
-                              fontSize: (context.isMobile ? 9 : 10) * context.fontSizeMultiplier,
+                              fontSize: (context.isMobile ? 9 : 10) *
+                                  context.fontSizeMultiplier,
                               fontWeight: FontWeight.bold,
                               color: statusColor,
                             ),
@@ -1971,7 +2025,6 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
                     ),
                   ],
                 ),
-                
                 if (isCurrentFile || file.progress > 0)
                   Padding(
                     padding: EdgeInsets.only(top: context.isMobile ? 6 : 8),
@@ -2000,12 +2053,12 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
-              onPressed: _transferComplete || !_isSending 
+              onPressed: _transferComplete || !_isSending
                   ? () {
                       setState(() {
                         _currentStep = 2;
                       });
-                    } 
+                    }
                   : null,
               icon: const Icon(Icons.arrow_back),
               label: const Text('Back'),
@@ -2020,7 +2073,7 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: _transferComplete 
+              onPressed: _transferComplete
                   ? () {
                       setState(() {
                         _currentStep = 1;
@@ -2031,7 +2084,7 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
                         _totalBytesSent = 0;
                         _currentFileIndex = 0;
                       });
-                    } 
+                    }
                   : null,
               icon: const Icon(Icons.refresh),
               label: const Text(
@@ -2054,12 +2107,12 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
       children: [
         Expanded(
           child: OutlinedButton.icon(
-            onPressed: _transferComplete || !_isSending 
+            onPressed: _transferComplete || !_isSending
                 ? () {
                     setState(() {
                       _currentStep = 2;
                     });
-                  } 
+                  }
                 : null,
             icon: const Icon(Icons.arrow_back),
             label: const Text('Back'),
@@ -2074,7 +2127,7 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
         Expanded(
           flex: 2,
           child: ElevatedButton.icon(
-            onPressed: _transferComplete 
+            onPressed: _transferComplete
                 ? () {
                     setState(() {
                       _currentStep = 1;
@@ -2085,7 +2138,7 @@ class _FileSenderScreenState extends State<FileSenderScreen> with SingleTickerPr
                       _totalBytesSent = 0;
                       _currentFileIndex = 0;
                     });
-                  } 
+                  }
                 : null,
             icon: const Icon(Icons.refresh),
             label: const Text(

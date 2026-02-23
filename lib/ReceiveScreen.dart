@@ -1,13 +1,11 @@
 import 'dart:io';
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:intl/intl.dart';
 import 'package:open_file/open_file.dart';
-import 'package:animate_do/animate_do.dart';
 import 'package:lottie/lottie.dart';
 import 'package:speedshare/main.dart';
 
@@ -16,12 +14,14 @@ class ReceiveScreen extends StatefulWidget {
   _ReceiveScreenState createState() => _ReceiveScreenState();
 }
 
-class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProviderStateMixin {
+class _ReceiveScreenState extends State<ReceiveScreen>
+    with SingleTickerProviderStateMixin {
   // Constants
   static const int SERVER_PORT = 8080;
   static const int DISCOVERY_PORT = 8081;
-  static const int MAX_FILE_SIZE = 10 * 1024 * 1024 * 1024; // 10GB receive limit
-  
+  static const int MAX_FILE_SIZE =
+      10 * 1024 * 1024 * 1024; // 10GB receive limit
+
   ServerSocket? serverSocket;
   RawDatagramSocket? _discoverySocket;
   String receivedFileName = '';
@@ -42,7 +42,8 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
   late Animation<double> _pulseAnimation;
 
   // Dynamic values instead of hardcoded
-  String get currentDateTime => DateFormat('dd MMM yyyy, HH:mm').format(DateTime.now());
+  String get currentDateTime =>
+      DateFormat('dd MMM yyyy, HH:mm').format(DateTime.now());
   String get userLogin => Platform.localHostname;
 
   @override
@@ -92,7 +93,8 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
   void _loadReceivedFiles(Directory directory) async {
     try {
       List<FileSystemEntity> files = await directory.list().toList();
-      files.sort((a, b) => b.statSync().modified.compareTo(a.statSync().modified));
+      files.sort(
+          (a, b) => b.statSync().modified.compareTo(a.statSync().modified));
       List<Map<String, dynamic>> filesList = [];
       for (var file in files) {
         if (file is File) {
@@ -157,11 +159,14 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
       // Close existing sockets if any
       await serverSocket?.close();
       _discoverySocket?.close();
-      
-      serverSocket = await ServerSocket.bind(InternetAddress.anyIPv4, SERVER_PORT);
+
+      serverSocket =
+          await ServerSocket.bind(InternetAddress.anyIPv4, SERVER_PORT);
 
       // FIXED: UDP discovery response protocol - matches sender expectation
-      _discoverySocket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, DISCOVERY_PORT);
+      _discoverySocket =
+          await RawDatagramSocket.bind(InternetAddress.anyIPv4, DISCOVERY_PORT);
+      _discoverySocket!.broadcastEnabled = true;
       _discoverySocket!.listen((event) {
         if (event == RawSocketEvent.read) {
           final datagram = _discoverySocket!.receive();
@@ -169,11 +174,15 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
             final message = utf8.decode(datagram.data);
             if (message == 'SPEEDSHARE_DISCOVERY') {
               // FIXED: Send response in format sender expects: "SPEEDSHARE_RESPONSE:deviceName:"
-              final responseMessage = utf8.encode('SPEEDSHARE_RESPONSE:$computerName:');
-              _discoverySocket!.send(responseMessage, datagram.address, datagram.port);
+              final responseMessage =
+                  utf8.encode('SPEEDSHARE_RESPONSE:$computerName:');
+              _discoverySocket!
+                  .send(responseMessage, datagram.address, datagram.port);
             }
           }
         }
+      }, onError: (error) {
+        print('UDP Discovery stream error: $error');
       });
 
       setState(() {
@@ -220,14 +229,16 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
           if (receivingHeaderSize) {
             // First 4 bytes indicate metadata size
             if (data.length >= 4) {
-              ByteData byteData = ByteData.sublistView(Uint8List.fromList(data.sublist(0, 4)));
+              ByteData byteData =
+                  ByteData.sublistView(Uint8List.fromList(data.sublist(0, 4)));
               metadataSize = byteData.getInt32(0);
               if (data.length > 4) {
                 headerBuffer.addAll(data.sublist(4));
               }
               receivingHeaderSize = false;
               if (headerBuffer.length >= metadataSize) {
-                final metadataResult = await _processMetadata(headerBuffer, metadataSize);
+                final metadataResult =
+                    await _processMetadata(headerBuffer, metadataSize);
                 expectedFileName = metadataResult['fileName']!;
                 expectedFileSize = metadataResult['fileSize']!;
                 receivingMetadata = false;
@@ -249,7 +260,8 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
           } else {
             headerBuffer.addAll(data);
             if (headerBuffer.length >= metadataSize) {
-              final metadataResult = await _processMetadata(headerBuffer, metadataSize);
+              final metadataResult =
+                  await _processMetadata(headerBuffer, metadataSize);
               expectedFileName = metadataResult['fileName']!;
               expectedFileSize = metadataResult['fileSize']!;
               receivingMetadata = false;
@@ -271,11 +283,12 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
           await _writeFileData(fileForWrite!, data);
           writtenFileBytes += data.length;
           _updateProgress(writtenFileBytes, expectedFileSize);
-          
+
           // File transfer complete
           if (writtenFileBytes >= expectedFileSize) {
-            await _completeFileTransfer(fileForWrite!, expectedFileName, expectedFileSize, client);
-            
+            await _completeFileTransfer(
+                fileForWrite!, expectedFileName, expectedFileSize, client);
+
             // Reset for next file
             receivingMetadata = true;
             receivingHeaderSize = true;
@@ -310,17 +323,19 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
   }
 
   // Helper methods for file handling
-  Future<Map<String, dynamic>> _processMetadata(List<int> buffer, int size) async {
+  Future<Map<String, dynamic>> _processMetadata(
+      List<int> buffer, int size) async {
     final metadataJson = utf8.decode(buffer.sublist(0, size));
     final metadata = json.decode(metadataJson) as Map<String, dynamic>;
     final expectedFileName = sanitizeFileName(p.basename(metadata['fileName']));
     final expectedFileSize = metadata['fileSize'];
-    
+
     // Validate file size
     if (expectedFileSize > MAX_FILE_SIZE) {
-      throw Exception('File too large. Maximum size is ${_formatFileSize(MAX_FILE_SIZE)}');
+      throw Exception(
+          'File too large. Maximum size is ${_formatFileSize(MAX_FILE_SIZE)}');
     }
-    
+
     if (mounted) {
       setState(() {
         receivedFileName = expectedFileName;
@@ -345,7 +360,8 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
     }
   }
 
-  Future<void> _completeFileTransfer(File file, String fileName, int size, Socket client) async {
+  Future<void> _completeFileTransfer(
+      File file, String fileName, int size, Socket client) async {
     if (mounted) {
       setState(() {
         receivedFiles.insert(0, {
@@ -356,7 +372,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
         });
       });
     }
-    
+
     _showSnackBar(
       'File received: $fileName',
       Icons.check_circle_rounded,
@@ -367,9 +383,9 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
         onPressed: () => _openFile(file.path),
       ),
     );
-    
+
     client.write('TRANSFER_COMPLETE');
-    
+
     if (mounted) {
       setState(() {
         receivedFileName = '';
@@ -386,7 +402,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
       _discoverySocket?.close();
       serverSocket = null;
       _discoverySocket = null;
-      
+
       setState(() {
         isReceiving = false;
         isReceivingAnimation = false;
@@ -396,7 +412,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
         bytesReceived = 0;
         receivedFile = null;
       });
-      
+
       _showSnackBar(
         'Stopped receiving files',
         Icons.info_rounded,
@@ -471,7 +487,8 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
   String _formatFileSize(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    if (bytes < 1024 * 1024 * 1024)
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 
@@ -480,7 +497,8 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
     return DateFormat('dd MMM yyyy, HH:mm').format(date);
   }
 
-  void _showSnackBar(String message, IconData icon, Color color, {SnackBarAction? action}) {
+  void _showSnackBar(String message, IconData icon, Color color,
+      {SnackBarAction? action}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
@@ -517,9 +535,9 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
           children: [
             // Header with title - Responsive
             _buildHeader(),
-            
+
             SizedBox(height: context.isMobile ? 12 : 16),
-            
+
             // Main content - Responsive layout
             Expanded(
               child: _buildMainContent(),
@@ -553,7 +571,8 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
               Text(
                 'Receive Files',
                 style: TextStyle(
-                  fontSize: (context.isMobile ? 16 : 18) * context.fontSizeMultiplier,
+                  fontSize:
+                      (context.isMobile ? 16 : 18) * context.fontSizeMultiplier,
                   fontWeight: FontWeight.bold,
                   color: Color(0xFF2AB673),
                 ),
@@ -561,9 +580,10 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
               Text(
                 'Start receiving files from other devices',
                 style: TextStyle(
-                  fontSize: (context.isMobile ? 11 : 12) * context.fontSizeMultiplier,
-                  color: Theme.of(context).brightness == Brightness.dark 
-                      ? Colors.grey[400] 
+                  fontSize:
+                      (context.isMobile ? 11 : 12) * context.fontSizeMultiplier,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.grey[400]
                       : Colors.grey[600],
                 ),
                 overflow: TextOverflow.ellipsis,
@@ -592,13 +612,13 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
           // Device info & status
           _buildDeviceInfoCard(),
           SizedBox(height: context.isMobile ? 10 : 12),
-          
+
           // Current transfer if any
           if (receivedFileName.isNotEmpty) ...[
             _buildCurrentTransferCard(),
             SizedBox(height: context.isMobile ? 10 : 12),
           ],
-          
+
           // Received files
           _buildReceivedFilesCard(),
         ],
@@ -628,9 +648,9 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
             )
           else
             _buildDeviceInfoCard(),
-          
+
           const SizedBox(height: 16),
-          
+
           // Received files (full width)
           _buildReceivedFilesCard(),
         ],
@@ -655,9 +675,9 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
             ],
           ),
         ),
-        
+
         const SizedBox(width: 20),
-        
+
         // Right column: Received files
         Expanded(
           flex: 3,
@@ -666,7 +686,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
       ],
     );
   }
-  
+
   Widget _buildDeviceInfoCard() {
     return Card(
       margin: EdgeInsets.zero,
@@ -695,24 +715,25 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
                   'Device Info',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    fontSize: (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
+                    fontSize: (context.isMobile ? 12 : 14) *
+                        context.fontSizeMultiplier,
                   ),
                 ),
               ],
             ),
-            
+
             SizedBox(height: context.isMobile ? 10 : 12),
-            
+
             // Device info items - Responsive layout
             _buildDeviceInfoItems(),
-            
+
             Divider(height: context.isMobile ? 20 : 24),
-            
+
             // Status section
             _buildStatusSection(),
-            
+
             SizedBox(height: context.isMobile ? 10 : 12),
-            
+
             // Control buttons - Responsive
             _buildControlButtons(),
           ],
@@ -826,7 +847,8 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
             isReceiving ? 'Listening for files' : 'Not receiving',
             style: TextStyle(
               fontWeight: FontWeight.bold,
-              fontSize: (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
+              fontSize:
+                  (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
               color: isReceiving ? const Color(0xFF2AB673) : null,
             ),
           ),
@@ -834,9 +856,8 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
         // User info badge
         Container(
           padding: EdgeInsets.symmetric(
-            horizontal: context.isMobile ? 6 : 8, 
-            vertical: context.isMobile ? 3 : 4
-          ),
+              horizontal: context.isMobile ? 6 : 8,
+              vertical: context.isMobile ? 3 : 4),
           decoration: BoxDecoration(
             color: const Color(0xFF2AB673).withOpacity(0.1),
             borderRadius: BorderRadius.circular(12),
@@ -853,7 +874,8 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
               Text(
                 computerName,
                 style: TextStyle(
-                  fontSize: (context.isMobile ? 10 : 12) * context.fontSizeMultiplier,
+                  fontSize:
+                      (context.isMobile ? 10 : 12) * context.fontSizeMultiplier,
                   color: Color(0xFF2AB673),
                   fontWeight: FontWeight.bold,
                 ),
@@ -873,13 +895,18 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
             width: double.infinity,
             child: ElevatedButton.icon(
               onPressed: isReceiving ? null : startReceiving,
-              icon: Icon(Icons.play_arrow_rounded, size: context.isMobile ? 14 : 16),
-              label: Text('Start Receiving', style: TextStyle(fontSize: (context.isMobile ? 12 : 13) * context.fontSizeMultiplier)),
+              icon: Icon(Icons.play_arrow_rounded,
+                  size: context.isMobile ? 14 : 16),
+              label: Text('Start Receiving',
+                  style: TextStyle(
+                      fontSize: (context.isMobile ? 12 : 13) *
+                          context.fontSizeMultiplier)),
               style: ElevatedButton.styleFrom(
                 foregroundColor: Colors.white,
                 backgroundColor: const Color(0xFF2AB673),
                 disabledBackgroundColor: Colors.grey[400],
-                padding: EdgeInsets.symmetric(vertical: context.isMobile ? 12 : 14),
+                padding:
+                    EdgeInsets.symmetric(vertical: context.isMobile ? 12 : 14),
               ),
             ),
           ),
@@ -889,12 +916,16 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
             child: ElevatedButton.icon(
               onPressed: isReceiving ? stopReceiving : null,
               icon: Icon(Icons.stop_rounded, size: context.isMobile ? 14 : 16),
-              label: Text('Stop Receiving', style: TextStyle(fontSize: (context.isMobile ? 12 : 13) * context.fontSizeMultiplier)),
+              label: Text('Stop Receiving',
+                  style: TextStyle(
+                      fontSize: (context.isMobile ? 12 : 13) *
+                          context.fontSizeMultiplier)),
               style: ElevatedButton.styleFrom(
                 foregroundColor: Colors.white,
                 backgroundColor: Colors.red[400],
                 disabledBackgroundColor: Colors.grey[400],
-                padding: EdgeInsets.symmetric(vertical: context.isMobile ? 12 : 14),
+                padding:
+                    EdgeInsets.symmetric(vertical: context.isMobile ? 12 : 14),
               ),
             ),
           ),
@@ -907,13 +938,18 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
         Expanded(
           child: ElevatedButton.icon(
             onPressed: isReceiving ? null : startReceiving,
-            icon: Icon(Icons.play_arrow_rounded, size: context.isMobile ? 14 : 16),
-            label: Text('Start', style: TextStyle(fontSize: (context.isMobile ? 12 : 13) * context.fontSizeMultiplier)),
+            icon: Icon(Icons.play_arrow_rounded,
+                size: context.isMobile ? 14 : 16),
+            label: Text('Start',
+                style: TextStyle(
+                    fontSize: (context.isMobile ? 12 : 13) *
+                        context.fontSizeMultiplier)),
             style: ElevatedButton.styleFrom(
               foregroundColor: Colors.white,
               backgroundColor: const Color(0xFF2AB673),
               disabledBackgroundColor: Colors.grey[400],
-              padding: EdgeInsets.symmetric(vertical: context.isMobile ? 8 : 10),
+              padding:
+                  EdgeInsets.symmetric(vertical: context.isMobile ? 8 : 10),
             ),
           ),
         ),
@@ -922,20 +958,25 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
           child: ElevatedButton.icon(
             onPressed: isReceiving ? stopReceiving : null,
             icon: Icon(Icons.stop_rounded, size: context.isMobile ? 14 : 16),
-            label: Text('Stop', style: TextStyle(fontSize: (context.isMobile ? 12 : 13) * context.fontSizeMultiplier)),
+            label: Text('Stop',
+                style: TextStyle(
+                    fontSize: (context.isMobile ? 12 : 13) *
+                        context.fontSizeMultiplier)),
             style: ElevatedButton.styleFrom(
               foregroundColor: Colors.white,
               backgroundColor: Colors.red[400],
               disabledBackgroundColor: Colors.grey[400],
-              padding: EdgeInsets.symmetric(vertical: context.isMobile ? 8 : 10),
+              padding:
+                  EdgeInsets.symmetric(vertical: context.isMobile ? 8 : 10),
             ),
           ),
         ),
       ],
     );
   }
-  
-  Widget _buildInfoItem(String label, String value, IconData icon, VoidCallback? onTap) {
+
+  Widget _buildInfoItem(
+      String label, String value, IconData icon, VoidCallback? onTap) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -950,7 +991,8 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
             Text(
               label,
               style: TextStyle(
-                fontSize: (context.isMobile ? 9 : 11) * context.fontSizeMultiplier,
+                fontSize:
+                    (context.isMobile ? 9 : 11) * context.fontSizeMultiplier,
                 color: Theme.of(context).brightness == Brightness.dark
                     ? Colors.grey[400]
                     : Colors.grey[600],
@@ -966,7 +1008,8 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
                 value,
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  fontSize: (context.isMobile ? 10 : 12) * context.fontSizeMultiplier,
+                  fontSize:
+                      (context.isMobile ? 10 : 12) * context.fontSizeMultiplier,
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -989,7 +1032,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
       ],
     );
   }
-  
+
   Widget _buildCurrentTransferCard() {
     return Card(
       margin: EdgeInsets.zero,
@@ -1018,14 +1061,15 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
                   'Current Transfer',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    fontSize: (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
+                    fontSize: (context.isMobile ? 12 : 14) *
+                        context.fontSizeMultiplier,
                   ),
                 ),
               ],
             ),
-            
+
             SizedBox(height: context.isMobile ? 10 : 12),
-            
+
             // File info and progress
             Row(
               children: [
@@ -1039,7 +1083,8 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
                         receivedFileName,
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          fontSize: (context.isMobile ? 11 : 13) * context.fontSizeMultiplier,
+                          fontSize: (context.isMobile ? 11 : 13) *
+                              context.fontSizeMultiplier,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -1047,7 +1092,8 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
                       Text(
                         '${_formatFileSize(bytesReceived)} of ${_formatFileSize(fileSize)}',
                         style: TextStyle(
-                          fontSize: (context.isMobile ? 9 : 11) * context.fontSizeMultiplier,
+                          fontSize: (context.isMobile ? 9 : 11) *
+                              context.fontSizeMultiplier,
                           color: Theme.of(context).brightness == Brightness.dark
                               ? Colors.grey[400]
                               : Colors.grey[600],
@@ -1058,9 +1104,9 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
                 ),
               ],
             ),
-            
+
             SizedBox(height: context.isMobile ? 8 : 10),
-            
+
             // Progress bar
             ClipRRect(
               borderRadius: BorderRadius.circular(4),
@@ -1069,13 +1115,14 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
                 backgroundColor: Theme.of(context).brightness == Brightness.dark
                     ? Colors.grey[700]
                     : Colors.grey[300],
-                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF4E6AF3)),
+                valueColor:
+                    const AlwaysStoppedAnimation<Color>(Color(0xFF4E6AF3)),
                 minHeight: context.isMobile ? 4 : 6,
               ),
             ),
-            
+
             SizedBox(height: context.isMobile ? 6 : 8),
-            
+
             // Progress percentage and status
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1084,7 +1131,8 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
                   '${(progress * 100).toStringAsFixed(1)}%',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    fontSize: (context.isMobile ? 10 : 12) * context.fontSizeMultiplier,
+                    fontSize: (context.isMobile ? 10 : 12) *
+                        context.fontSizeMultiplier,
                     color: Color(0xFF4E6AF3),
                   ),
                 ),
@@ -1095,14 +1143,16 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
                       height: context.isMobile ? 8 : 10,
                       child: const CircularProgressIndicator(
                         strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4E6AF3)),
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(Color(0xFF4E6AF3)),
                       ),
                     ),
                     SizedBox(width: context.isMobile ? 4 : 6),
                     Text(
                       'Receiving...',
                       style: TextStyle(
-                        fontSize: (context.isMobile ? 9 : 11) * context.fontSizeMultiplier,
+                        fontSize: (context.isMobile ? 9 : 11) *
+                            context.fontSizeMultiplier,
                         fontStyle: FontStyle.italic,
                         color: Color(0xFF4E6AF3),
                       ),
@@ -1116,7 +1166,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
       ),
     );
   }
-  
+
   Widget _buildReceivedFilesCard() {
     return Card(
       margin: EdgeInsets.zero,
@@ -1148,7 +1198,8 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
                       'Received Files',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
+                        fontSize: (context.isMobile ? 12 : 14) *
+                            context.fontSizeMultiplier,
                       ),
                     ),
                   ],
@@ -1156,21 +1207,24 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
                 if (receivedFiles.isNotEmpty)
                   TextButton.icon(
                     onPressed: _openDownloadsFolder,
-                    icon: Icon(Icons.folder_open_rounded, size: context.isMobile ? 12 : 14),
-                    label: Text('Open Folder', style: TextStyle(fontSize: (context.isMobile ? 10 : 12) * context.fontSizeMultiplier)),
+                    icon: Icon(Icons.folder_open_rounded,
+                        size: context.isMobile ? 12 : 14),
+                    label: Text('Open Folder',
+                        style: TextStyle(
+                            fontSize: (context.isMobile ? 10 : 12) *
+                                context.fontSizeMultiplier)),
                     style: TextButton.styleFrom(
                       foregroundColor: const Color(0xFF4E6AF3),
                       padding: EdgeInsets.symmetric(
-                        horizontal: context.isMobile ? 6 : 8, 
-                        vertical: context.isMobile ? 2 : 4
-                      ),
+                          horizontal: context.isMobile ? 6 : 8,
+                          vertical: context.isMobile ? 2 : 4),
                     ),
                   ),
               ],
             ),
-            
+
             SizedBox(height: context.isMobile ? 6 : 8),
-            
+
             // Files list
             _buildFilesList(),
           ],
@@ -1178,7 +1232,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
       ),
     );
   }
-  
+
   Widget _buildFilesList() {
     if (receivedFiles.isEmpty) {
       return Container(
@@ -1203,7 +1257,8 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
                 'No files received yet',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  fontSize: (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
+                  fontSize:
+                      (context.isMobile ? 12 : 14) * context.fontSizeMultiplier,
                   color: Theme.of(context).brightness == Brightness.dark
                       ? Colors.grey[400]
                       : Colors.grey[600],
@@ -1213,7 +1268,8 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
               Text(
                 'Files you receive will appear here',
                 style: TextStyle(
-                  fontSize: (context.isMobile ? 10 : 12) * context.fontSizeMultiplier,
+                  fontSize:
+                      (context.isMobile ? 10 : 12) * context.fontSizeMultiplier,
                   color: Theme.of(context).brightness == Brightness.dark
                       ? Colors.grey[500]
                       : Colors.grey[500],
@@ -1224,7 +1280,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
         ),
       );
     }
-    
+
     return Container(
       constraints: BoxConstraints(
         maxHeight: context.isMobile ? 200 : 300,
@@ -1240,22 +1296,23 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
             child: ListTile(
               dense: context.isMobile,
               contentPadding: EdgeInsets.symmetric(
-                horizontal: context.isMobile ? 8 : 10, 
-                vertical: context.isMobile ? 2 : 4
-              ),
+                  horizontal: context.isMobile ? 8 : 10,
+                  vertical: context.isMobile ? 2 : 4),
               leading: _getFileTypeIcon(file['name']),
               title: Text(
                 file['name'],
                 style: TextStyle(
-                  fontWeight: FontWeight.bold, 
-                  fontSize: (context.isMobile ? 11 : 13) * context.fontSizeMultiplier
-                ),
+                    fontWeight: FontWeight.bold,
+                    fontSize: (context.isMobile ? 11 : 13) *
+                        context.fontSizeMultiplier),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
               subtitle: Text(
                 '${_formatFileSize(file['size'])} • ${_formatDate(file['date'])}',
-                style: TextStyle(fontSize: (context.isMobile ? 9 : 11) * context.fontSizeMultiplier),
+                style: TextStyle(
+                    fontSize: (context.isMobile ? 9 : 11) *
+                        context.fontSizeMultiplier),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -1276,54 +1333,53 @@ class _ReceiveScreenState extends State<ReceiveScreen> with SingleTickerProvider
       ),
     );
   }
-  
+
   Widget _getFileTypeIcon(String fileName) {
     IconData iconData;
     Color iconColor;
-    
-    if (fileName.endsWith('.jpg') || 
-        fileName.endsWith('.jpeg') || 
-        fileName.endsWith('.png') || 
+
+    if (fileName.endsWith('.jpg') ||
+        fileName.endsWith('.jpeg') ||
+        fileName.endsWith('.png') ||
         fileName.endsWith('.gif')) {
       iconData = Icons.image_rounded;
       iconColor = Colors.blue;
-    } else if (fileName.endsWith('.mp4') || 
-              fileName.endsWith('.avi') || 
-              fileName.endsWith('.mov')) {
+    } else if (fileName.endsWith('.mp4') ||
+        fileName.endsWith('.avi') ||
+        fileName.endsWith('.mov')) {
       iconData = Icons.video_file_rounded;
       iconColor = Colors.red;
-    } else if (fileName.endsWith('.mp3') || 
-              fileName.endsWith('.wav') || 
-              fileName.endsWith('.flac')) {
+    } else if (fileName.endsWith('.mp3') ||
+        fileName.endsWith('.wav') ||
+        fileName.endsWith('.flac')) {
       iconData = Icons.audio_file_rounded;
       iconColor = Colors.purple;
     } else if (fileName.endsWith('.pdf')) {
       iconData = Icons.picture_as_pdf_rounded;
       iconColor = Colors.red;
-    } else if (fileName.endsWith('.doc') || 
-              fileName.endsWith('.docx') || 
-              fileName.endsWith('.txt')) {
+    } else if (fileName.endsWith('.doc') ||
+        fileName.endsWith('.docx') ||
+        fileName.endsWith('.txt')) {
       iconData = Icons.description_rounded;
       iconColor = Colors.blue;
-    } else if (fileName.endsWith('.xls') || 
-              fileName.endsWith('.xlsx') || 
-              fileName.endsWith('.csv')) {
+    } else if (fileName.endsWith('.xls') ||
+        fileName.endsWith('.xlsx') ||
+        fileName.endsWith('.csv')) {
       iconData = Icons.table_chart_rounded;
       iconColor = Color(0xFF2AB673);
-    } else if (fileName.endsWith('.ppt') || 
-              fileName.endsWith('.pptx')) {
+    } else if (fileName.endsWith('.ppt') || fileName.endsWith('.pptx')) {
       iconData = Icons.slideshow_rounded;
       iconColor = Colors.orange;
-    } else if (fileName.endsWith('.zip') || 
-              fileName.endsWith('.rar') || 
-              fileName.endsWith('.7z')) {
+    } else if (fileName.endsWith('.zip') ||
+        fileName.endsWith('.rar') ||
+        fileName.endsWith('.7z')) {
       iconData = Icons.folder_zip_rounded;
       iconColor = Colors.amber;
     } else {
       iconData = Icons.insert_drive_file_rounded;
       iconColor = Colors.grey;
     }
-    
+
     return Container(
       padding: EdgeInsets.all(context.isMobile ? 4 : 6),
       decoration: BoxDecoration(
