@@ -116,8 +116,8 @@ class _MyAppState extends State<MyApp> {
     );
   }
   
-  CardTheme _buildCardTheme() {
-    return CardTheme(
+  CardThemeData _buildCardTheme() {
+    return CardThemeData(
       elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
